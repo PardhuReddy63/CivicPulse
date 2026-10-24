@@ -1,0 +1,29 @@
+[
+  {
+    "complaint_id": 1,
+    "title": "Severe Pothole near Indiranagar Metro",
+    "description": "Deep asphalt breakdown causing traffic gridlock and two-wheeler hazard.",
+    "category": "Roads & Infrastructure",
+    "sub_category": "Pothole",
+    "location": "Indiranagar 100ft Rd, Bangalore",
+    "status": "ASSIGNED",
+    "priority": "HIGH",
+    "user_id": 5,
+    "officer_id": 2,
+    "deadline": "2026-10-30"
+  },
+  {
+    "complaint_id": 2,
+    "title": "Contaminated Tap Water in Sector 4",
+    "description": "Muddy water supply with sulfur odor.",
+    "category": "Water Works & Drainage",
+    "sub_category": "Contamination",
+    "location": "Sector 4, HSR Layout",
+    "status": "RESOLVED",
+    "priority": "HIGH",
+    "user_id": 5,
+    "officer_id": 3,
+    "deadline": "2026-10-22",
+    "resolved_notes": "Main sluice valve replaced and pipe line flushed."
+  }
+]

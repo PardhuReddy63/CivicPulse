@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+
+# Build output
+build/
+dist/
+coverage/
+
+# Environment secrets
+.env
+.env.*
+!.env.example
+
+# Python
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Generated files
+*.log
+.DS_Store
+.gmp_cache/
+
+# User uploads
+backend/uploads/
+uploads/
+
+# IDE
+.vscode/
+# Python environments and caches
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Generated cache and uploaded files
+.gmp_cache/
+uploads/
+backend/uploads/
+
+# Local IDE settings
+.vscode/

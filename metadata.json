@@ -1,0 +1,6 @@
+{
+  "name": "CivicPulse Hub",
+  "description": "Role-based Grievance Management & Feedback Redressal System with Citizen, Officer, and Admin portals, complaint lifecycle tracking, evidence uploads, and workload analytics.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["DATABASE_BACKED_GRIEVANCE_MANAGEMENT", "OPENSTREETMAP_LEAFLET"]
+}
