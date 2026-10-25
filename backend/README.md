@@ -26,7 +26,7 @@ notepad .\.env
 ```
 Set the required database settings and a unique `JWT_SECRET` (at least 32 characters). SMTP settings are optional for server startup but required to register/verify accounts and send password reset messages. When SMTP is not set, email-dependent endpoints return `SMTP_NOT_CONFIGURED` and do not expose OTP/reset tokens.
 
-Create the first administrator only on a fresh database using `npm run admin:create`. It prompts for values supplied through temporary `ADMIN_NAME`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD` environment variables; see the repository root `README.md` for the PowerShell command. There are no default demo credentials.
+For local development, create the first administrator only when none exists by running `npm run admin:create` with temporary `ADMIN_BOOTSTRAP_IDENTIFIER` and `ADMIN_BOOTSTRAP_PASSWORD` environment values. The script is restricted to `NODE_ENV=development` and loopback MySQL, never overwrites an administrator, hashes the supplied password, and does not print credentials. See the root README for a PowerShell prompt that keeps the password out of source files. Production administrator provisioning must use a private operational process.
 
 ### 4. Run Server in Development Mode
 ```powershell
@@ -42,7 +42,7 @@ npm test
 ```
 
 ## API Architecture & Endpoints
-- **Authentication**: `/api/v1/auth/register`, `/verify-otp`, `/resend-otp`, `/login`, `/me`, `/forgot-password`, `/reset-password`
+- **Authentication**: `/api/v1/auth/register`, `/verify-otp`, `/resend-otp`, `/login`, `/me`, `/change-password`, `/forgot-password`, `/reset-password`
 - **Complaints**:
   - `POST /api/v1/complaints`: Citizen lodging with multipart file upload
   - `GET /api/v1/complaints`: Admin list with status & priority filters

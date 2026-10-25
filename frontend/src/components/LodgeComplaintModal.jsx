@@ -12,12 +12,30 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 
+const subCategoryMap = {
+  'Roads & Infrastructure': ['Pothole', 'Damaged Footpath', 'Missing Manhole Cover', 'Traffic Sign Broken', 'Road Cave-in'],
+  'Water Works & Drainage': ['Water Contamination', 'Low Pressure', 'Main Pipeline Burst', 'Open Sewage Drain', 'Water Meter Leak'],
+  'Electricity & Power': ['Streetlight Out', 'Transformer Sparking', 'Hanging Low Wire', 'Frequent Power Surge', 'Uncovered Feeder Box'],
+  'Sanitation & Solid Waste': ['Garbage Dump Overflow', 'Illegal Debris Dumping', 'Bio-waste Hazard', 'Uncleaned Public Toilet', 'Dead Animal Disposal'],
+  'Public Health & Safety': ['Stagnant Mosquito Pool', 'Stray Animal Pack', 'Chemical Odor Leak', 'Food Adulteration Alert', 'Open Hazard Pit'],
+};
+
+const standardDepartments = Object.keys(subCategoryMap).map((name) => ({
+  department_id: name,
+  name,
+}));
+
 export const LodgeComplaintModal = ({ onClose, onSuccess }) => {
-  const departments = store.getDepartments();
+  const configuredDepartments = store.getDepartments();
+  const departments = configuredDepartments.length ? configuredDepartments : standardDepartments;
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState(departments[3]?.name || 'Roads & Infrastructure');
+  const [category, setCategory] = useState(
+    departments.find((department) => department.name === 'Roads & Infrastructure')?.name ||
+    departments[0]?.name ||
+    ''
+  );
   const [subCategory, setSubCategory] = useState('Pothole');
   const [location, setLocation] = useState('');
   const [latitude, setLatitude] = useState(null);
@@ -30,14 +48,6 @@ export const LodgeComplaintModal = ({ onClose, onSuccess }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
   const [locating, setLocating] = useState(false);
-
-  const subCategoryMap = {
-    'Roads & Infrastructure': ['Pothole', 'Damaged Footpath', 'Missing Manhole Cover', 'Traffic Sign Broken', 'Road Cave-in'],
-    'Water Works & Drainage': ['Water Contamination', 'Low Pressure', 'Main Pipeline Burst', 'Open Sewage Drain', 'Water Meter Leak'],
-    'Electricity & Power': ['Streetlight Out', 'Transformer Sparking', 'Hanging Low Wire', 'Frequent Power Surge', 'Uncovered Feeder Box'],
-    'Sanitation & Solid Waste': ['Garbage Dump Overflow', 'Illegal Debris Dumping', 'Bio-waste Hazard', 'Uncleaned Public Toilet', 'Dead Animal Disposal'],
-    'Public Health & Safety': ['Stagnant Mosquito Pool', 'Stray Animal Pack', 'Chemical Odor Leak', 'Food Adulteration Alert', 'Open Hazard Pit'],
-  };
 
   const handleImageChange = (e) => {
     const file = e.target.files?.[0];
@@ -142,10 +152,17 @@ export const LodgeComplaintModal = ({ onClose, onSuccess }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-      <div className="relative w-full max-w-2xl max-h-[92vh] bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150">
+    <div
+      className="fixed inset-x-0 bottom-0 top-[68px] z-50 flex items-start justify-center overflow-hidden bg-slate-900/60 p-2 pt-2 backdrop-blur-xs sm:p-3"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div className="relative flex h-full min-h-0 w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-2">
           <div>
             <span className="text-[11px] font-bold tracking-wider uppercase text-blue-600 flex items-center gap-1">
               <ShieldCheck className="w-3.5 h-3.5" />
@@ -157,6 +174,7 @@ export const LodgeComplaintModal = ({ onClose, onSuccess }) => {
           </div>
           <button
             onClick={onClose}
+            aria-label="Close grievance form"
             className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition cursor-pointer"
           >
             <X className="w-5 h-5" />
@@ -165,7 +183,10 @@ export const LodgeComplaintModal = ({ onClose, onSuccess }) => {
 
         {/* Form or Confirmation View */}
         {!showConfirmation ? (
-          <form onSubmit={handleProceedToConfirmation} className="p-6 overflow-y-auto space-y-4">
+          <form
+            onSubmit={handleProceedToConfirmation}
+            className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4 pt-2 sm:px-6 sm:pb-6 sm:pt-3 space-y-4"
+          >
             {errorMsg && (
               <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
@@ -191,6 +212,11 @@ export const LodgeComplaintModal = ({ onClose, onSuccess }) => {
 
             {/* Category & Subcategory */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {configuredDepartments.length === 0 && (
+                <p className="sm:col-span-2 text-xs text-amber-700" role="status">
+                  Department records are not configured yet. Standard grievance categories are available for submission.
+                </p>
+              )}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
                   Department / Category *
@@ -205,7 +231,7 @@ export const LodgeComplaintModal = ({ onClose, onSuccess }) => {
                   className="w-full text-xs p-3 rounded-xl border border-slate-300 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden cursor-pointer"
                 >
                   {departments.map((d) => (
-                    <option key={d.department_id} value={d.name}>
+                    <option key={d.department_id || d.name} value={d.name}>
                       {d.name}
                     </option>
                   ))}
@@ -269,7 +295,7 @@ export const LodgeComplaintModal = ({ onClose, onSuccess }) => {
 
               {/* OpenStreetMap location picker */}
               {showMapPicker && (
-                <div className="space-y-1 rounded-2xl overflow-hidden border border-slate-200">
+                <div className="space-y-1 overflow-hidden rounded-2xl border border-slate-200">
                   <div className="bg-slate-100 px-3 py-1.5 text-[11px] text-slate-600 font-medium flex items-center justify-between">
                     <span>Click on the map or drag the pin to set the exact civic issue location:</span>
                     <span className="font-mono text-blue-700 font-bold">
@@ -279,18 +305,19 @@ export const LodgeComplaintModal = ({ onClose, onSuccess }) => {
                     </span>
                   </div>
                   <GrievanceMap
+                    compact
                     complaints={[]}
                     selectableLocation={true}
                     initialLat={latitude}
                     initialLng={longitude}
-                    onLocationSelect={(lat, lng, address) => {
+                    onLocationSelect={(lat, lng) => {
                       setLatitude(lat);
                       setLongitude(lng);
                       setCoordsExplicitlySet(true);
                     }}
                   />
                   <p className="px-3 pb-2 text-[11px] text-slate-500">
-                    {address}: coordinates only. Enter the real street address or landmark above.
+                    Map selection sets coordinates only. Enter the real street address or landmark above.
                   </p>
                 </div>
               )}

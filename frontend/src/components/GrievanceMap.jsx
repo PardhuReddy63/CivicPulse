@@ -72,6 +72,7 @@ export const GrievanceMap = ({
   onLocationSelect,
   initialLat,
   initialLng,
+  compact = false,
 }) => {
   const validComplaints = useMemo(
     () =>
@@ -180,7 +181,12 @@ export const GrievanceMap = ({
         <div className="flex flex-wrap items-center gap-2">
           {selectableLocation && (
             <>
-              <form onSubmit={handleCoordinateSubmit} className="flex items-center gap-1">
+              <div
+                className="flex items-center gap-1"
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') handleCoordinateSubmit(event);
+                }}
+              >
                 <input
                   aria-label="Latitude"
                   inputMode="decimal"
@@ -197,10 +203,14 @@ export const GrievanceMap = ({
                   placeholder="Longitude"
                   className="w-24 rounded-lg border border-slate-300 px-2 py-1 text-xs"
                 />
-                <button className="rounded-lg bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-200">
+                <button
+                  type="button"
+                  onClick={handleCoordinateSubmit}
+                  className="rounded-lg bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-200"
+                >
                   Set
                 </button>
-              </form>
+              </div>
               <button
                 type="button"
                 onClick={handleUseCurrentLocation}
@@ -226,7 +236,11 @@ export const GrievanceMap = ({
         </div>
       )}
 
-      <div className="relative h-80 w-full bg-slate-100 sm:h-96">
+      <div
+        className={`relative isolate w-full overflow-hidden bg-slate-100 ${
+          compact ? 'h-48 sm:h-56' : 'h-80 sm:h-96'
+        }`}
+      >
         <MapContainer
           center={initialCenter}
           zoom={validComplaints.length ? 13 : 5}

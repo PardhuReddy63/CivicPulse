@@ -1,9 +1,15 @@
 const db = require('../config/db');
 
+async function executeInsert(executor, client, sql, params) {
+  if (!client) return executor.query(sql, params);
+  const [result] = await executor.query(sql, params);
+  return result;
+}
+
 class FeedbackRepository {
   async create({ complaint_id, citizen_id, rating, feedback_text, resolution_cycle = 1 }, client = null) {
     const executor = client || db;
-    const result = await executor.query(
+    const result = await executeInsert(executor, client,
       `INSERT INTO complaint_feedback (complaint_id, citizen_id, rating, feedback_text, resolution_cycle, created_at)
        VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())`,
       [complaint_id, citizen_id, rating, feedback_text || null, resolution_cycle]

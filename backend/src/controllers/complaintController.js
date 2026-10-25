@@ -1,6 +1,16 @@
 const complaintService = require('../services/complaintService');
 const complaintRepository = require('../repositories/complaintRepository');
 const feedbackRepository = require('../repositories/feedbackRepository');
+const path = require('path');
+const config = require('../config/env');
+
+function canViewComplaint(complaint, user) {
+  return (
+    user.role === 'ADMIN' ||
+    (user.role === 'CITIZEN' && complaint.user_id === user.user_id) ||
+    (user.role === 'OFFICER' && complaint.officer_id === user.user_id)
+  );
+}
 
 class ComplaintController {
   async createComplaint(req, res, next) {
@@ -114,12 +124,7 @@ class ComplaintController {
         });
       }
 
-      // Authorization guard: Admin can view all; citizen can view their own; officer can view assigned
-      const isOwner = req.user.role === 'CITIZEN' && complaint.user_id === req.user.user_id;
-      const isOfficer = req.user.role === 'OFFICER' && complaint.officer_id === req.user.user_id;
-      const isAdmin = req.user.role === 'ADMIN';
-
-      if (!isOwner && !isOfficer && !isAdmin) {
+      if (!canViewComplaint(complaint, req.user)) {
         return res.status(403).json({
           success: false,
           error: { code: 'FORBIDDEN', message: 'You are not authorized to view this complaint.' },
@@ -136,6 +141,62 @@ class ComplaintController {
           attachments,
           feedback_history: feedback,
         },
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async getEvidence(req, res, next) {
+    try {
+      if (!/^\d+$/.test(req.params.complaintId) || !['BEFORE', 'AFTER'].includes(req.params.type)) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'INVALID_EVIDENCE_REQUEST', message: 'A valid complaint ID and evidence type are required.' },
+        });
+      }
+
+      const complaintId = Number.parseInt(req.params.complaintId, 10);
+      const complaint = await complaintRepository.findById(complaintId);
+      if (!complaint) {
+        return res.status(404).json({
+          success: false,
+          error: { code: 'COMPLAINT_NOT_FOUND', message: 'Complaint does not exist.' },
+        });
+      }
+
+      if (!canViewComplaint(complaint, req.user)) {
+        return res.status(403).json({
+          success: false,
+          error: { code: 'FORBIDDEN', message: 'You are not authorized to view this evidence.' },
+        });
+      }
+
+      const evidencePath = req.params.type === 'BEFORE' ? complaint.image : complaint.resolved_image;
+      if (!evidencePath) {
+        return res.status(404).json({
+          success: false,
+          error: { code: 'EVIDENCE_NOT_FOUND', message: 'No evidence image is available.' },
+        });
+      }
+
+      const filename = path.basename(evidencePath);
+      if (!filename || filename === '.' || filename === path.sep) {
+        return res.status(404).json({
+          success: false,
+          error: { code: 'EVIDENCE_NOT_FOUND', message: 'No evidence image is available.' },
+        });
+      }
+
+      return res.sendFile(filename, {
+        root: path.resolve(config.UPLOAD_DIR),
+        dotfiles: 'deny',
+        headers: {
+          'Cache-Control': 'private, no-store',
+          'X-Content-Type-Options': 'nosniff',
+        },
+      }, (error) => {
+        if (error && !res.headersSent) next(error);
       });
     } catch (err) {
       next(err);
@@ -277,12 +338,7 @@ class ComplaintController {
         });
       }
 
-      // Check view permission
-      const isOwner = req.user.role === 'CITIZEN' && complaint.user_id === req.user.user_id;
-      const isOfficer = req.user.role === 'OFFICER' && complaint.officer_id === req.user.user_id;
-      const isAdmin = req.user.role === 'ADMIN';
-
-      if (!isOwner && !isOfficer && !isAdmin) {
+      if (!canViewComplaint(complaint, req.user)) {
         return res.status(403).json({
           success: false,
           error: { code: 'FORBIDDEN', message: 'Access denied to this complaint history.' },

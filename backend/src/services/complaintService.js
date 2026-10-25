@@ -32,6 +32,13 @@ class ComplaintService {
         conn
       );
 
+      if (!complaintId) {
+        const err = new Error('Could not create the grievance record. Please try again.');
+        err.status = 500;
+        err.code = 'COMPLAINT_ID_UNAVAILABLE';
+        throw err;
+      }
+
       if (image_file) {
         await complaintRepository.addAttachment(
           {
@@ -87,10 +94,23 @@ class ComplaintService {
     workflowRules.assertAssignable(complaint.status);
 
     const officer = await userRepository.findById(officer_id);
-    if (!officer || officer.role !== 'OFFICER' || !officer.active) {
-      const err = new Error('Selected officer is invalid, inactive, or not an officer.');
+    if (!officer || officer.role !== 'OFFICER' || !officer.active || !officer.verified) {
+      const err = new Error('Selected officer is invalid, inactive, unverified, or not an officer.');
       err.status = 400;
       err.code = 'INVALID_OFFICER';
+      throw err;
+    }
+    const department = await userRepository.findDepartmentByName(complaint.category);
+    if (!department) {
+      const err = new Error('No active department is configured for this grievance category.');
+      err.status = 409;
+      err.code = 'DEPARTMENT_NOT_CONFIGURED';
+      throw err;
+    }
+    if (Number(officer.department_id) !== Number(department.department_id)) {
+      const err = new Error('The selected officer does not belong to this grievance department.');
+      err.status = 400;
+      err.code = 'OFFICER_DEPARTMENT_MISMATCH';
       throw err;
     }
 

@@ -40,10 +40,18 @@ async function authenticate(req, res, next) {
     req.user = user;
     next();
   } catch (error) {
-    return res.status(401).json({
-      success: false,
-      error: { code: 'INVALID_TOKEN', message: 'Invalid or expired token.' }
-    });
+    if (
+      error instanceof jwt.JsonWebTokenError ||
+      error instanceof jwt.TokenExpiredError ||
+      error instanceof jwt.NotBeforeError
+    ) {
+      return res.status(401).json({
+        success: false,
+        error: { code: 'INVALID_TOKEN', message: 'Invalid or expired token.' }
+      });
+    }
+
+    return next(error);
   }
 }
 

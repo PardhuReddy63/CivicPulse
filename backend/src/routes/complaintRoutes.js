@@ -3,6 +3,7 @@ const router = express.Router();
 const complaintController = require('../controllers/complaintController');
 const { authenticate, requireRole } = require('../middleware/auth');
 const upload = require('../middleware/upload');
+const { validateImageContents } = upload;
 const {
   createComplaintValidation,
   assignComplaintValidation,
@@ -21,6 +22,7 @@ router.post(
   '/',
   requireRole(['CITIZEN']),
   upload.single('image'),
+  validateImageContents,
   createComplaintValidation,
   complaintController.createComplaint
 );
@@ -39,6 +41,9 @@ router.get('/resolved', requireRole(['ADMIN']), complaintController.listResolved
 
 // 6. View single complaint details
 router.get('/:complaintId', complaintController.getComplaintById);
+
+// Evidence files are delivered only after complaint-level authorization.
+router.get('/:complaintId/evidence/:type', complaintController.getEvidence);
 
 // 7. Admin assigns officer
 router.post(
@@ -77,6 +82,7 @@ router.post(
   '/:complaintId/resolve',
   requireRole(['OFFICER']),
   upload.single('after_image'),
+  validateImageContents,
   resolveComplaintValidation,
   complaintController.resolveComplaint
 );

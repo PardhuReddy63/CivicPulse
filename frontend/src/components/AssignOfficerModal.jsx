@@ -3,15 +3,24 @@ import { store } from '../services/store';
 import { X, UserCheck, AlertCircle } from 'lucide-react';
 
 export const AssignOfficerModal = ({ complaint, onClose, onSuccess }) => {
-  const users = store.getUsers().filter((u) => u.role === 'OFFICER' && u.active === 1);
   const departments = store.getDepartments();
 
   const matchedDept = departments.find(
     (d) => d.name.toLowerCase() === complaint.category.toLowerCase()
   );
+  const users = store
+    .getUsers()
+    .filter(
+      (u) =>
+        u.role === 'OFFICER' &&
+        Boolean(u.active) &&
+        Boolean(u.verified) &&
+        matchedDept &&
+        Number(u.department_id) === Number(matchedDept.department_id)
+    );
 
   const [selectedOfficerId, setSelectedOfficerId] = useState(
-    users[0]?.user_id || 0
+    users[0]?.user_id || ''
   );
   const [priority, setPriority] = useState(complaint.priority || 'HIGH');
 
@@ -101,9 +110,18 @@ export const AssignOfficerModal = ({ complaint, onClose, onSuccess }) => {
                 </option>
               ))}
             </select>
-            {matchedDept && (
+            {matchedDept ? (
               <span className="text-[10px] text-purple-600 font-medium mt-1 block">
                 Suggested department match: {matchedDept.name}
+              </span>
+            ) : (
+              <span role="alert" className="mt-1 block text-[10px] text-rose-700">
+                This grievance category has no configured department. Configure the department catalog before assigning it.
+              </span>
+            )}
+            {matchedDept && users.length === 0 && (
+              <span role="alert" className="mt-1 block text-[10px] text-rose-700">
+                No active officers are assigned to this department.
               </span>
             )}
           </div>
@@ -163,7 +181,7 @@ export const AssignOfficerModal = ({ complaint, onClose, onSuccess }) => {
             </button>
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || users.length === 0}
               className="px-5 py-2 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-xs transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
             >
               <UserCheck className="w-3.5 h-3.5" />

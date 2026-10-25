@@ -1,10 +1,59 @@
+
 const db = require('../config/db');
 
 class UserRepository {
+  async findByIdentifier(identifier) {
+    const normalizedIdentifier = String(identifier || '').trim();
+
+    if (!normalizedIdentifier) {
+      return null;
+    }
+
+    // "admin" is an alias for an existing ADMIN account, not a new account.
+    // Never return a citizen or officer through this alias.
+    if (normalizedIdentifier.toLowerCase() === 'admin') {
+      const rows = await db.query(
+        `SELECT u.user_id, u.name, u.email, u.password_hash, u.role,
+                u.department_id, u.active, u.verified, u.created_at,
+                u.updated_at, d.name AS department_name
+         FROM users u
+         LEFT JOIN departments d ON u.department_id = d.department_id
+         WHERE u.role = 'ADMIN'
+         ORDER BY u.user_id ASC
+         LIMIT 1`
+      );
+
+      return rows[0] || null;
+    }
+
+    const rows = await db.query(
+      `SELECT u.user_id, u.name, u.email, u.password_hash, u.role,
+              u.department_id, u.active, u.verified, u.created_at,
+              u.updated_at, d.name AS department_name
+       FROM users u
+       LEFT JOIN departments d ON u.department_id = d.department_id
+       WHERE LOWER(u.email) = LOWER(?)`,
+      [normalizedIdentifier]
+    );
+
+    return rows[0] || null;
+  }
+
+  async findDepartmentByName(name) {
+    const rows = await db.query(
+      `SELECT department_id, name
+       FROM departments
+       WHERE name = ? AND active = 1`,
+      [name]
+    );
+    return rows[0] || null;
+  }
+
   async findById(userId) {
     const rows = await db.query(
-      `SELECT u.user_id, u.name, u.email, u.password_hash, u.role, u.department_id, 
-              u.active, u.verified, u.created_at, u.updated_at, d.name AS department_name
+      `SELECT u.user_id, u.name, u.email, u.password_hash, u.role,
+              u.department_id, u.active, u.verified, u.created_at,
+              u.updated_at, d.name AS department_name
        FROM users u
        LEFT JOIN departments d ON u.department_id = d.department_id
        WHERE u.user_id = ?`,
@@ -15,8 +64,9 @@ class UserRepository {
 
   async findByEmail(email) {
     const rows = await db.query(
-      `SELECT u.user_id, u.name, u.email, u.password_hash, u.role, u.department_id, 
-              u.active, u.verified, u.created_at, u.updated_at, d.name AS department_name
+      `SELECT u.user_id, u.name, u.email, u.password_hash, u.role,
+              u.department_id, u.active, u.verified, u.created_at,
+              u.updated_at, d.name AS department_name
        FROM users u
        LEFT JOIN departments d ON u.department_id = d.department_id
        WHERE u.email = ?`,
@@ -27,7 +77,9 @@ class UserRepository {
 
   async create({ name, email, password_hash, role, department_id = null }) {
     const result = await db.query(
-      `INSERT INTO users (name, email, password_hash, role, department_id, active, verified, created_at, updated_at)
+      `INSERT INTO users
+        (name, email, password_hash, role, department_id, active, verified,
+         created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, 1, 0, UTC_TIMESTAMP(), UTC_TIMESTAMP())`,
       [name, email, password_hash, role, department_id]
     );
@@ -36,14 +88,18 @@ class UserRepository {
 
   async markVerified(userId) {
     await db.query(
-      `UPDATE users SET verified = 1, updated_at = UTC_TIMESTAMP() WHERE user_id = ?`,
+      `UPDATE users
+       SET verified = 1, updated_at = UTC_TIMESTAMP()
+       WHERE user_id = ?`,
       [userId]
     );
   }
 
   async updatePassword(userId, newPasswordHash) {
     await db.query(
-      `UPDATE users SET password_hash = ?, updated_at = UTC_TIMESTAMP() WHERE user_id = ?`,
+      `UPDATE users
+       SET password_hash = ?, updated_at = UTC_TIMESTAMP()
+       WHERE user_id = ?`,
       [newPasswordHash, userId]
     );
   }
@@ -57,19 +113,21 @@ class UserRepository {
       whereClause += ' AND u.role = ?';
       params.push(role);
     }
+
     if (department_id) {
       whereClause += ' AND u.department_id = ?';
       params.push(department_id);
     }
 
     const countRows = await db.query(
-      `SELECT COUNT(*) as total FROM users u WHERE ${whereClause}`,
+      `SELECT COUNT(*) AS total FROM users u WHERE ${whereClause}`,
       params
     );
     const total = countRows[0].total;
 
     const dataRows = await db.query(
-      `SELECT u.user_id, u.name, u.email, u.role, u.department_id, u.active, u.verified, u.created_at,
+      `SELECT u.user_id, u.name, u.email, u.role, u.department_id,
+              u.active, u.verified, u.created_at,
               d.name AS department_name
        FROM users u
        LEFT JOIN departments d ON u.department_id = d.department_id
@@ -90,30 +148,40 @@ class UserRepository {
 
   async updateRoleAndDepartment(userId, role, departmentId = null) {
     await db.query(
-      `UPDATE users SET role = ?, department_id = ?, updated_at = UTC_TIMESTAMP() WHERE user_id = ?`,
+      `UPDATE users
+       SET role = ?, department_id = ?, updated_at = UTC_TIMESTAMP()
+       WHERE user_id = ?`,
       [role, departmentId, userId]
     );
   }
 
   async setActiveStatus(userId, active) {
     await db.query(
-      `UPDATE users SET active = ?, updated_at = UTC_TIMESTAMP() WHERE user_id = ?`,
+      `UPDATE users
+       SET active = ?, updated_at = UTC_TIMESTAMP()
+       WHERE user_id = ?`,
       [active ? 1 : 0, userId]
     );
   }
 
   async listActiveOfficersByDepartment(departmentId = null) {
-    let sql = `SELECT u.user_id, u.name, u.email, u.department_id, d.name AS department_name
+    let sql = `SELECT u.user_id, u.name, u.email, u.department_id,
+                      d.name AS department_name
                FROM users u
                LEFT JOIN departments d ON u.department_id = d.department_id
-               WHERE u.role = 'OFFICER' AND u.active = 1 AND u.verified = 1`;
+               WHERE u.role = 'OFFICER'
+                 AND u.active = 1
+                 AND u.verified = 1`;
+
     const params = [];
+
     if (departmentId) {
-      sql += ` AND u.department_id = ?`;
+      sql += ' AND u.department_id = ?';
       params.push(departmentId);
     }
-    sql += ` ORDER BY u.name ASC`;
-    return await db.query(sql, params);
+
+    sql += ' ORDER BY u.name ASC';
+    return db.query(sql, params);
   }
 }
 

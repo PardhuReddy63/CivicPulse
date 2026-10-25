@@ -29,8 +29,29 @@ const registerValidation = [
 ];
 
 const loginValidation = [
-  body('email').trim().isEmail().withMessage('Valid email is required').normalizeEmail(),
+  body('identifier')
+    .custom((value, { req }) => {
+      const candidate = typeof value === 'string' && value.trim()
+        ? value
+        : req.body.email;
+      if (typeof candidate !== 'string' || !candidate.trim() || candidate.trim().length > 254) {
+        throw new Error('Username or email is required (maximum 254 characters).');
+      }
+      req.body.identifier = candidate.trim();
+      return true;
+    }),
   body('password').notEmpty().withMessage('Password is required'),
+  validateResult,
+];
+
+const changePasswordValidation = [
+  body('current_password').notEmpty().withMessage('Current password is required'),
+  body('new_password')
+    .isLength({ min: 8, max: 128 })
+    .withMessage('New password must be between 8 and 128 characters.'),
+  body('confirm_password')
+    .custom((value, { req }) => value === req.body.new_password)
+    .withMessage('Password confirmation does not match.'),
   validateResult,
 ];
 
@@ -51,10 +72,27 @@ const resetPasswordValidation = [
   validateResult,
 ];
 
+const officerActivationValidation = [
+  body('token')
+    .trim()
+    .isLength({ min: 64, max: 64 })
+    .isHexadecimal()
+    .withMessage('A valid activation token is required.'),
+
+  body('password')
+    .isString()
+    .isLength({ min: 8, max: 128 })
+    .withMessage('Password must be between 8 and 128 characters.'),
+
+  validateResult,
+];
+
 module.exports = {
   registerValidation,
   loginValidation,
+  changePasswordValidation,
   verifyOtpValidation,
   forgotPasswordValidation,
   resetPasswordValidation,
+  officerActivationValidation,
 };

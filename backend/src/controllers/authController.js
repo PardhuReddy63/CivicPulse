@@ -1,4 +1,5 @@
 const authService = require('../services/authService');
+const officerActivationService = require('../services/officerActivationService');
 
 class AuthController {
   async register(req, res, next) {
@@ -84,6 +85,19 @@ class AuthController {
     }
   }
 
+  async activateOfficer(req, res, next) {
+    try {
+      const result = await officerActivationService.activateAccount(req.body);
+
+      return res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (err) {
+      return next(err);
+    }
+  }
+
   async getMe(req, res, next) {
     try {
       res.status(200).json({
@@ -98,6 +112,19 @@ class AuthController {
           created_at: req.user.created_at,
         },
       });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async changePassword(req, res, next) {
+    try {
+      const result = await authService.changePassword(
+        req.user.user_id,
+        req.body.current_password,
+        req.body.new_password
+      );
+      res.status(200).json({ success: true, data: result });
     } catch (err) {
       next(err);
     }

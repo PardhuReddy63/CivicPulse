@@ -16,7 +16,12 @@ const storage = multer.diskStorage({
   filename: function (req, file, cb) {
     // Generate secure randomized server-side filename; do not trust client name
     const randomHex = crypto.randomBytes(16).toString('hex');
-    const ext = path.extname(file.originalname).toLowerCase();
+    const extensionsByMimeType = {
+      'image/jpeg': '.jpg',
+      'image/png': '.png',
+      'image/webp': '.webp',
+    };
+    const ext = extensionsByMimeType[file.mimetype] || path.extname(file.originalname).toLowerCase();
     cb(null, `evidence_${Date.now()}_${randomHex}${ext}`);
   },
 });
@@ -40,4 +45,33 @@ const upload = multer({
   fileFilter,
 });
 
+const signaturesByMimeType = {
+  'image/jpeg': (buffer) => buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff,
+  'image/png': (buffer) => buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])),
+  'image/webp': (buffer) =>
+    buffer.length >= 12 &&
+    buffer.toString('ascii', 0, 4) === 'RIFF' &&
+    buffer.toString('ascii', 8, 12) === 'WEBP',
+};
+
+async function validateImageContents(req, res, next) {
+  if (!req.file) return next();
+
+  try {
+    const buffer = await fs.promises.readFile(req.file.path);
+    const matchesSignature = signaturesByMimeType[req.file.mimetype]?.(buffer);
+    if (matchesSignature) return next();
+
+    await fs.promises.unlink(req.file.path);
+    const error = new Error('The uploaded file contents do not match a supported image format.');
+    error.status = 415;
+    error.code = 'INVALID_IMAGE_CONTENT';
+    return next(error);
+  } catch (error) {
+    return next(error);
+  }
+}
+
 module.exports = upload;
+module.exports.validateImageContents = validateImageContents;
+module.exports.signaturesByMimeType = signaturesByMimeType;

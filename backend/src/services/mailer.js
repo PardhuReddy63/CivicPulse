@@ -50,4 +50,30 @@ async function sendPasswordResetToken(email, token) {
   });
 }
 
-module.exports = { assertConfigured, sendVerificationOtp, sendPasswordResetToken };
+async function sendOfficerApprovalEmail(email, activationUrl) {
+  const transport = getTransport();
+
+  await transport.sendMail({
+    from: config.SMTP.from,
+    to: email,
+    subject: 'Your CivicPulse Hub officer application was approved',
+    text: [
+      'Congratulations!',
+      '',
+      'Your CivicPulse Hub officer registration application has been approved.',
+      '',
+      'To activate your account and set your password, open this secure link:',
+      activationUrl,
+      '',
+      'This link expires in 30 minutes and can only be used once.',
+      'If you did not submit this application, please ignore this email.',
+    ].join('\n'),
+  });
+}
+
+module.exports = {
+  assertConfigured,
+  sendVerificationOtp,
+  sendPasswordResetToken,
+  sendOfficerApprovalEmail,
+};

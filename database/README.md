@@ -40,7 +40,7 @@ Get-Content .\schema.sql -Raw | & "C:\xampp\mysql\bin\mysql.exe" -u root civicpu
 ```
 
 ## Schema Entities & Relationships
-- **departments**: Department registry (Sanitation, Electricity, Water Works, Roads, Public Health).
+- **departments**: Department registry for the five grievance categories, including Public Health & Safety.
 - **users**: CITIZEN, OFFICER, ADMIN accounts with bcrypt hash, active, and verified flags.
 - **complaints**: Core ticket lifecycle (`PENDING` -> `ASSIGNED` -> `RESOLVED`), priority (`LOW`, `MEDIUM`, `HIGH`), deadline, officer assignments, and resolution notes.
 - **complaint_attachments**: `BEFORE` and `AFTER` photos with MIME type verification.
@@ -49,3 +49,39 @@ Get-Content .\schema.sql -Raw | & "C:\xampp\mysql\bin\mysql.exe" -u root civicpu
 - **otp_verifications**: Single-use, time-bound registration OTP tokens.
 - **password_reset_tokens**: Expiring password recovery tokens.
 - **audit_logs**: System-wide administrative action tracking.
+
+## Safe department catalog migration
+
+Existing databases created before the department catalog was populated can apply
+`migrations/001_configure_grievance_departments.sql` without dropping tables or
+changing grievance/user records. It inserts missing supported department names
+and leaves existing department settings unchanged. Run it only
+after confirming `civicpulse_db` is the intended database:
+
+```powershell
+Get-Content .\migrations\001_configure_grievance_departments.sql -Raw |
+  & "C:\xampp\mysql\bin\mysql.exe" -u root civicpulse_db
+```
+
+Department officers must be assigned to the matching department before an
+administrator can assign grievances in that category.
+
+## Local development administrator bootstrap
+
+The legacy `migrations/002_admin_first_login_password.sql` migration is retained
+for databases that applied it, but the application no longer reads or enforces
+its flag. Fresh schemas do not include that obsolete field. Do not re-run
+`schema.sql` against an existing database; it drops and recreates tables.
+
+To provision the initial administrator on a local development database, start
+the backend with `NODE_ENV=development` and a loopback MySQL host, then run
+`npm run admin:create` from `backend/`. The bootstrap is manual, creates an
+administrator only when none exists, never overwrites an account, and does not
+print credentials. It must not be run against production or any remote database.
+The local bootstrap account uses the development-only login values provided for
+this setup; change the password after signing in using **Account → Change
+password**. Administrators can also change passwords voluntarily at any time.
+
+For deployments, provision the first administrator through a controlled,
+private operational procedure with a unique password; do not use the local
+development bootstrap.

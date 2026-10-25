@@ -50,8 +50,8 @@ class CivicPulseStore {
     this.notify();
   }
 
-  async login(email, password) {
-    const response = await ApiClient.login({ email, password });
+  async login(identifier, password) {
+    const response = await ApiClient.login({ identifier, password });
     ApiClient.setToken(response.data.token);
     this.setCurrentUser(response.data.user);
     try {
@@ -75,6 +75,26 @@ class CivicPulseStore {
 
   async resendOtp(email) {
     const response = await ApiClient.resendOtp({ email });
+    return response.data;
+  }
+
+  async requestPasswordReset(email) {
+    const response = await ApiClient.forgotPassword(email);
+    return response.data;
+  }
+
+  async resetPassword(token, password) {
+    const response = await ApiClient.resetPassword(token, password);
+    return response.data;
+  }
+
+  async activateOfficer(token, password) {
+    const response = await ApiClient.activateOfficer(token, password);
+    return response.data;
+  }
+
+  async changePassword(currentPassword, newPassword, confirmPassword) {
+    const response = await ApiClient.changePassword(currentPassword, newPassword, confirmPassword);
     return response.data;
   }
 

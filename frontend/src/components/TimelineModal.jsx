@@ -1,4 +1,5 @@
 import React from 'react';
+import { ProtectedEvidenceImage } from './ProtectedEvidenceImage';
 import {
   X,
   Calendar,
@@ -15,6 +16,8 @@ export const TimelineModal = ({
   feedbacks = [],
   onClose,
   onOpenFeedback,
+  onResolve,
+  onAssign,
   canRate = false,
 }) => {
   if (!complaint) return null;
@@ -116,8 +119,9 @@ export const TimelineModal = ({
                 </div>
                 <div className="h-44 w-full flex items-center justify-center bg-slate-200">
                   {complaint.image ? (
-                    <img
-                      src={complaint.image}
+                    <ProtectedEvidenceImage
+                      complaintId={complaint.complaint_id}
+                      type="BEFORE"
                       alt="Before proof"
                       className="w-full h-full object-cover"
                     />
@@ -135,8 +139,9 @@ export const TimelineModal = ({
                 </div>
                 <div className="h-44 w-full flex items-center justify-center bg-slate-200">
                   {complaint.resolved_image ? (
-                    <img
-                      src={complaint.resolved_image}
+                    <ProtectedEvidenceImage
+                      complaintId={complaint.complaint_id}
+                      type="AFTER"
                       alt="After proof"
                       className="w-full h-full object-cover"
                     />
@@ -279,6 +284,22 @@ export const TimelineModal = ({
               >
                 <Star className="w-3.5 h-3.5 fill-white" />
                 Rate Resolution Outcome
+              </button>
+            )}
+            {complaint.status === 'ASSIGNED' && onResolve && (
+              <button
+                onClick={onResolve}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition"
+              >
+                Submit resolution
+              </button>
+            )}
+            {onAssign && (
+              <button
+                onClick={onAssign}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-xs transition"
+              >
+                Assign officer
               </button>
             )}
             <button

@@ -61,14 +61,55 @@ class UserController {
         });
       }
 
-      await userRepository.updateRoleAndDepartment(userId, role, department_id || null);
+      const existingUser = await userRepository.findById(userId);
+      if (!existingUser) {
+        return res.status(404).json({
+          success: false,
+          error: { code: 'USER_NOT_FOUND', message: 'User not found.' },
+        });
+      }
+      if (userId === req.user.user_id && role !== 'ADMIN') {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'CANNOT_CHANGE_OWN_ROLE', message: 'You cannot remove your own administrator role.' },
+        });
+      }
+      if (role !== 'CITIZEN' && !existingUser.verified) {
+        return res.status(409).json({
+          success: false,
+          error: { code: 'USER_NOT_VERIFIED', message: 'Verify the account before granting a staff role.' },
+        });
+      }
+
+      let departmentId = null;
+      if (role === 'OFFICER') {
+        departmentId = Number(department_id);
+        if (!Number.isSafeInteger(departmentId) || departmentId < 1) {
+          return res.status(400).json({
+            success: false,
+            error: { code: 'DEPARTMENT_REQUIRED', message: 'Select an active department for the officer.' },
+          });
+        }
+        const departments = await db.query(
+          'SELECT department_id FROM departments WHERE department_id = ? AND active = 1',
+          [departmentId]
+        );
+        if (departments.length === 0) {
+          return res.status(400).json({
+            success: false,
+            error: { code: 'INVALID_DEPARTMENT', message: 'Select an active department.' },
+          });
+        }
+      }
+
+      await userRepository.updateRoleAndDepartment(userId, role, departmentId);
 
       await auditRepository.log({
         actor_user_id: req.user.user_id,
         action: 'USER_ROLE_UPDATED',
         entity_type: 'USER',
         entity_id: userId,
-        details_json: { new_role: role, department_id },
+        details_json: { new_role: role, department_id: departmentId },
       });
 
       const updated = await userRepository.findById(userId);
@@ -98,6 +139,14 @@ class UserController {
         return res.status(400).json({
           success: false,
           error: { code: 'CANNOT_DEACTIVATE_SELF', message: 'You cannot deactivate your own administrative account.' },
+        });
+      }
+
+      const existingUser = await userRepository.findById(userId);
+      if (!existingUser) {
+        return res.status(404).json({
+          success: false,
+          error: { code: 'USER_NOT_FOUND', message: 'User not found.' },
         });
       }
 

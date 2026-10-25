@@ -111,6 +111,7 @@ class AuthService {
   }
 
   async resendOtp({ email }) {
+    mailer.assertConfigured();
     const user = await userRepository.findByEmail(email);
     if (!user) {
       // Avoid revealing whether account exists
@@ -121,7 +122,6 @@ class AuthService {
       return { message: 'Account is already verified.' };
     }
 
-    mailer.assertConfigured();
     const otp = crypto.randomInt(100000, 1000000).toString();
     const otpHash = crypto.createHash('sha256').update(otp).digest('hex');
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
@@ -132,10 +132,10 @@ class AuthService {
     return { message: 'A new verification code has been sent to your email.' };
   }
 
-  async login({ email, password }) {
-    const user = await userRepository.findByEmail(email);
+  async login({ identifier, email, password }) {
+    const user = await userRepository.findByIdentifier(identifier || email);
     if (!user) {
-      const err = new Error('Invalid email or password.');
+      const err = new Error('Invalid username/email or password.');
       err.status = 401;
       err.code = 'INVALID_CREDENTIALS';
       throw err;
@@ -143,7 +143,7 @@ class AuthService {
 
     const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) {
-      const err = new Error('Invalid email or password.');
+      const err = new Error('Invalid username/email or password.');
       err.status = 401;
       err.code = 'INVALID_CREDENTIALS';
       throw err;
@@ -195,13 +195,47 @@ class AuthService {
     };
   }
 
+  async changePassword(userId, currentPassword, newPassword) {
+    const user = await userRepository.findById(userId);
+    if (!user) {
+      const err = new Error('Authenticated account was not found.');
+      err.status = 404;
+      err.code = 'USER_NOT_FOUND';
+      throw err;
+    }
+
+    if (!(await bcrypt.compare(currentPassword, user.password_hash))) {
+      const err = new Error('Current password is incorrect.');
+      err.status = 400;
+      err.code = 'CURRENT_PASSWORD_INCORRECT';
+      throw err;
+    }
+    if (await bcrypt.compare(newPassword, user.password_hash)) {
+      const err = new Error('Choose a password different from your current password.');
+      err.status = 400;
+      err.code = 'PASSWORD_UNCHANGED';
+      throw err;
+    }
+
+    const salt = await bcrypt.genSalt(12);
+    const passwordHash = await bcrypt.hash(newPassword, salt);
+    await userRepository.updatePassword(user.user_id, passwordHash);
+    await auditRepository.log({
+      actor_user_id: user.user_id,
+      action: 'PASSWORD_CHANGED',
+      entity_type: 'AUTH',
+      entity_id: user.user_id,
+    });
+    return { message: 'Password updated successfully.' };
+  }
+
   async forgotPassword({ email }) {
+    mailer.assertConfigured();
     const user = await userRepository.findByEmail(email);
     if (!user) {
       return { message: 'If this email exists in our records, a password reset link has been dispatched.' };
     }
 
-    mailer.assertConfigured();
     const rawToken = crypto.randomBytes(32).toString('hex');
     const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour

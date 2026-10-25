@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { store } from '../services/store';
 import { GrievanceMap } from './GrievanceMap';
 import { LodgeComplaintModal } from './LodgeComplaintModal';
@@ -21,16 +22,28 @@ import {
   Sparkles,
 } from 'lucide-react';
 
-export const CitizenPortal = ({ user }) => {
+export const CitizenPortal = ({ user, openNewGrievance = false }) => {
+  const navigate = useNavigate();
+  const { complaintId } = useParams();
+  const [searchParams] = useSearchParams();
   const [complaints, setComplaints] = useState(() =>
     store.getComplaints().filter((c) => c.user_id === user.user_id)
   );
   const [statusFilter, setStatusFilter] = useState('ALL');
-  const [showLodgeModal, setShowLodgeModal] = useState(false);
+  const [searchText, setSearchText] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('ALL');
+  const [showLodgeModal, setShowLodgeModal] = useState(openNewGrievance);
   const [selectedForFeedback, setSelectedForFeedback] = useState(null);
   const [selectedForTimeline, setSelectedForTimeline] = useState(null);
   const [notification, setNotification] = useState(null);
-  const [activeTab, setActiveTab] = useState('grievances');
+  const [activeTab, setActiveTab] = useState(() => {
+    const view = searchParams.get('view');
+
+    if (view === 'reports') return 'analytics';
+    if (view === 'grievances') return 'grievances';
+
+    return 'home';
+  });
 
   const refreshComplaints = () => {
     setComplaints(store.getComplaints().filter((c) => c.user_id === user.user_id));
@@ -43,10 +56,62 @@ export const CitizenPortal = ({ user }) => {
     return unsubscribe;
   }, [user.user_id]);
 
-  const filteredComplaints = complaints.filter((c) => {
-    if (statusFilter === 'ALL') return true;
-    return c.status === statusFilter;
-  });
+  useEffect(() => {
+    setShowLodgeModal(openNewGrievance);
+  }, [openNewGrievance]);
+
+  useEffect(() => {
+    const view = searchParams.get('view');
+
+    if (view === 'reports') {
+      setActiveTab('analytics');
+    } else if (view === 'grievances' || window.location.hash === '#grievances') {
+      setActiveTab('grievances');
+    } else {
+      setActiveTab('home');
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!complaintId) {
+      setSelectedForTimeline(null);
+      return undefined;
+    }
+
+    const complaint = store.getComplaints().find(
+      (item) => String(item.complaint_id) === String(complaintId)
+    );
+    if (!complaint || String(complaint.user_id) !== String(user.user_id)) {
+      showToast('This grievance could not be found in your account.', 'warn');
+      navigate('/citizen/dashboard', { replace: true });
+      return undefined;
+    }
+
+    let cancelled = false;
+    store
+      .loadComplaintDetails(complaintId)
+      .then((details) => {
+        if (!cancelled) setSelectedForTimeline({ ...complaint, ...details });
+      })
+      .catch((error) => {
+        if (!cancelled) showToast(error.message || 'Complaint history could not be loaded.', 'warn');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [complaintId, navigate, user.user_id]);
+
+  const filteredComplaints = complaints
+    .filter((complaint) => {
+      if (statusFilter !== 'ALL' && complaint.status !== statusFilter) return false;
+      if (categoryFilter !== 'ALL' && complaint.category !== categoryFilter) return false;
+      if (!searchText.trim()) return true;
+      const query = searchText.trim().toLowerCase();
+      return [complaint.title, complaint.description, complaint.location, complaint.category]
+        .some((value) => String(value || '').toLowerCase().includes(query));
+    })
+    .sort((left, right) => new Date(right.created_at || 0) - new Date(left.created_at || 0));
 
   const totals = {
     total: complaints.length,
@@ -60,14 +125,8 @@ export const CitizenPortal = ({ user }) => {
     setTimeout(() => setNotification(null), 5000);
   };
 
-  const handleOpenTimeline = async (complaint) => {
-    try {
-      const details = await store.loadComplaintDetails(complaint.complaint_id);
-      setSelectedForTimeline({ ...complaint, ...details });
-    } catch (error) {
-      showToast(error.message || 'Complaint history could not be loaded.', 'warn');
-    }
-  };
+  const handleOpenTimeline = (complaint) =>
+    navigate(`/citizen/grievances/${complaint.complaint_id}`);
 
   return (
     <div className="space-y-6">
@@ -97,8 +156,10 @@ export const CitizenPortal = ({ user }) => {
         </div>
       )}
 
+      {activeTab === 'home' && (
+        <>
       {/* Hero Welcome Banner */}
-      <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-sky-700 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+      <div className="bg-gradient-to-r from-blue-700 to-sky-600 rounded-3xl p-6 sm:p-8 text-white shadow-lg flex flex-col md:flex-row md:items-center md:justify-between gap-6">
         <div>
           <div className="flex items-center gap-2 text-blue-200 text-xs font-bold uppercase tracking-wider mb-1">
             <ShieldCheck className="w-4 h-4 text-emerald-400" />
@@ -113,7 +174,7 @@ export const CitizenPortal = ({ user }) => {
         </div>
 
         <button
-          onClick={() => setShowLodgeModal(true)}
+          onClick={() => navigate('/citizen/grievances/new')}
           className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-white text-blue-800 font-bold text-xs hover:bg-blue-50 shadow-lg hover:shadow-xl transition transform active:scale-95 cursor-pointer shrink-0"
         >
           <PlusCircle className="w-4 h-4 text-blue-600" />
@@ -122,7 +183,7 @@ export const CitizenPortal = ({ user }) => {
       </div>
 
       {/* Metrics Row - Derived from real database records */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between text-slate-500 mb-2">
             <span className="text-xs font-bold uppercase tracking-wider">Total Filed</span>
@@ -160,30 +221,8 @@ export const CitizenPortal = ({ user }) => {
         </div>
       </div>
 
-      {/* Interactive Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
-        <button
-          onClick={() => setActiveTab('grievances')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-            activeTab === 'grievances'
-              ? 'bg-blue-600 text-white shadow-xs'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          My Grievances ({complaints.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('analytics')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
-            activeTab === 'analytics'
-              ? 'bg-blue-600 text-white shadow-xs'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <BarChart3 className="w-3.5 h-3.5" />
-          My Personal Reports (/reports/me)
-        </button>
-      </div>
+        </>
+      )}
 
       {activeTab === 'grievances' ? (
         <>
@@ -206,8 +245,8 @@ export const CitizenPortal = ({ user }) => {
 
           {/* Filter Bar */}
           {complaints.length > 0 && (
-            <div className="flex items-center justify-between flex-wrap gap-2 pt-2">
-              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                <div className="flex items-center gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 text-xs">
                 {['ALL', 'PENDING', 'ASSIGNED', 'RESOLVED'].map((st) => (
                   <button
                     key={st}
@@ -222,9 +261,29 @@ export const CitizenPortal = ({ user }) => {
                   </button>
                 ))}
               </div>
+              <div className="flex flex-wrap items-center gap-2">
+              <input
+                aria-label="Search my grievances"
+                value={searchText}
+                onChange={(event) => setSearchText(event.target.value)}
+                placeholder="Search grievances"
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs sm:w-48"
+              />
+              <select
+                aria-label="Filter by category"
+                value={categoryFilter}
+                onChange={(event) => setCategoryFilter(event.target.value)}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs"
+              >
+                <option value="ALL">All categories</option>
+                {[...new Set(complaints.map((complaint) => complaint.category).filter(Boolean))].sort().map((category) => (
+                  <option key={category} value={category}>{category}</option>
+                ))}
+              </select>
               <span className="text-xs text-slate-400">
                 Showing {filteredComplaints.length} of {complaints.length} records
               </span>
+              </div>
             </div>
           )}
 
@@ -243,7 +302,7 @@ export const CitizenPortal = ({ user }) => {
               </p>
               <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
                 <button
-                  onClick={() => setShowLodgeModal(true)}
+                  onClick={() => navigate('/citizen/grievances/new')}
                   className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md hover:shadow-lg transition cursor-pointer active:scale-95"
                 >
                   <PlusCircle className="w-4 h-4" />
@@ -346,7 +405,7 @@ export const CitizenPortal = ({ user }) => {
             </div>
           )}
         </>
-      ) : (
+      ) : activeTab === 'analytics' ? (
         <div className="space-y-6">
           <div className="bg-white p-6 rounded-2xl border border-slate-200 space-y-4">
             <h3 className="text-sm font-bold text-slate-900">
@@ -372,12 +431,12 @@ export const CitizenPortal = ({ user }) => {
             </div>
           </div>
         </div>
-      )}
+      ) : null}
 
       {/* Modals */}
       {showLodgeModal && (
         <LodgeComplaintModal
-          onClose={() => setShowLodgeModal(false)}
+          onClose={() => navigate('/citizen/dashboard')}
           onSuccess={(msg) => {
             refreshComplaints();
             showToast(msg, 'success');
@@ -402,7 +461,7 @@ export const CitizenPortal = ({ user }) => {
           history={store.getStatusHistory(selectedForTimeline.complaint_id)}
           feedbacks={store.getFeedback(selectedForTimeline.complaint_id)}
           canRate={true}
-          onClose={() => setSelectedForTimeline(null)}
+          onClose={() => navigate('/citizen/dashboard')}
           onOpenFeedback={(c) => setSelectedForFeedback(c)}
         />
       )}

@@ -1,5 +1,11 @@
 const db = require('../config/db');
 
+async function executeInsert(executor, client, sql, params) {
+  if (!client) return executor.query(sql, params);
+  const [result] = await executor.query(sql, params);
+  return result;
+}
+
 class ComplaintRepository {
   async findById(complaintId) {
     const rows = await db.query(
@@ -158,7 +164,7 @@ class ComplaintRepository {
 
   async create(data, client = null) {
     const executor = client || db;
-    const result = await executor.query(
+    const result = await executeInsert(executor, client,
       `INSERT INTO complaints 
        (title, description, category, sub_category, location, latitude, longitude, image, status, priority, user_id, resolution_cycle, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, 1, UTC_TIMESTAMP(), UTC_TIMESTAMP())`,
@@ -180,7 +186,7 @@ class ComplaintRepository {
 
   async addAttachment(data, client = null) {
     const executor = client || db;
-    const result = await executor.query(
+    const result = await executeInsert(executor, client,
       `INSERT INTO complaint_attachments (complaint_id, attachment_type, file_path, mime_type, uploaded_by, created_at)
        VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())`,
       [data.complaint_id, data.attachment_type, data.file_path, data.mime_type, data.uploaded_by]
@@ -269,7 +275,7 @@ class ComplaintRepository {
 
   async addStatusHistory(data, client = null) {
     const executor = client || db;
-    const result = await executor.query(
+    const result = await executeInsert(executor, client,
       `INSERT INTO complaint_status_history (complaint_id, changed_by, old_status, new_status, reason, created_at)
        VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())`,
       [data.complaint_id, data.changed_by, data.old_status, data.new_status, data.reason || null]

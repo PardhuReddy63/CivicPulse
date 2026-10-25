@@ -29,22 +29,31 @@ notepad .\.env
 
 Set `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, and a unique `JWT_SECRET` (at least 32 characters). Set SMTP fields to your provider values to enable registration/verification and password reset. When SMTP is unset, email-dependent actions return a configuration error; no OTP or reset token is exposed as a development shortcut.
 
-For a fresh database, provision the first administrator through the one-time CLI. Set the name and email and enter a unique password without placing secrets in source files:
+For a local development database, provision the first administrator only if
+none already exists. The bootstrap refuses non-development mode and remote
+MySQL hosts, hashes the password, does not print it, and never overwrites an
+administrator. Supply the bootstrap password interactively rather than saving
+it in source control:
 
 ```powershell
-$env:ADMIN_NAME = Read-Host "Administrator name"
-$env:ADMIN_EMAIL = Read-Host "Administrator email"
-$securePassword = Read-Host "Administrator password (12+ characters)" -AsSecureString
+$env:ADMIN_BOOTSTRAP_IDENTIFIER = Read-Host "Local administrator login identifier"
+$securePassword = Read-Host "Local administrator password" -AsSecureString
 $passwordPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
 try {
-  $env:ADMIN_PASSWORD = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($passwordPointer)
+  $env:ADMIN_BOOTSTRAP_PASSWORD = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($passwordPointer)
   npm run admin:create
 }
 finally {
   [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($passwordPointer)
-  Remove-Item Env:ADMIN_PASSWORD, Env:ADMIN_NAME, Env:ADMIN_EMAIL -ErrorAction SilentlyContinue
+  Remove-Item Env:ADMIN_BOOTSTRAP_IDENTIFIER, Env:ADMIN_BOOTSTRAP_PASSWORD -ErrorAction SilentlyContinue
 }
 ```
+
+Supply the local-only login values from your private setup instructions. Change
+the password voluntarily after signing in through
+**Account → Change password**. Never reuse this development credential in a
+deployed environment; production administrators must be provisioned through a
+private operational process.
 
 Then start the API:
 

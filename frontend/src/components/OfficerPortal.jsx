@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { store } from '../services/store';
+import { GrievanceMap } from './GrievanceMap';
 import { ResolveComplaintModal } from './ResolveComplaintModal';
 import { TimelineModal } from './TimelineModal';
 import {
@@ -16,13 +18,21 @@ import {
 } from 'lucide-react';
 
 export const OfficerPortal = ({ user }) => {
+  const navigate = useNavigate();
+  const { complaintId } = useParams();
+  const [searchParams] = useSearchParams();
   const [complaints, setComplaints] = useState(() =>
     store.getComplaints().filter((c) => c.officer_id === user.user_id)
   );
   const [selectedForResolve, setSelectedForResolve] = useState(null);
   const [selectedForTimeline, setSelectedForTimeline] = useState(null);
   const [toast, setToast] = useState(null);
-  const [filter, setFilter] = useState('ASSIGNED');
+  const [filter, setFilter] = useState(searchParams.get('filter') || 'ASSIGNED');
+
+  React.useEffect(() => {
+    const requestedFilter = searchParams.get('filter');
+    setFilter(['ALL', 'ASSIGNED', 'RESOLVED', 'OVERDUE'].includes(requestedFilter) ? requestedFilter : 'ASSIGNED');
+  }, [searchParams]);
 
   const refreshComplaints = () => {
     setComplaints(store.getComplaints().filter((c) => c.officer_id === user.user_id));
@@ -36,6 +46,32 @@ export const OfficerPortal = ({ user }) => {
     return unsub;
   }, [user.user_id]);
 
+  React.useEffect(() => {
+    if (!complaintId) {
+      setSelectedForTimeline(null);
+      return;
+    }
+    const complaint = complaints.find(
+      (item) => String(item.complaint_id) === complaintId
+    );
+    if (!complaint || Number(complaint.officer_id) !== Number(user.user_id)) {
+      navigate('/officer/dashboard', { replace: true });
+      return;
+    }
+    let active = true;
+    store
+      .loadComplaintDetails(complaint.complaint_id)
+      .then((details) => {
+        if (active) setSelectedForTimeline({ ...complaint, ...details });
+      })
+      .catch((error) => {
+        if (active) showToast(error.message || 'Complaint details could not be loaded.');
+      });
+    return () => {
+      active = false;
+    };
+  }, [complaintId, complaints, user.user_id, navigate]);
+
   const showToast = (msg) => {
     setToast(msg);
     setTimeout(() => setToast(null), 4000);
@@ -45,9 +81,13 @@ export const OfficerPortal = ({ user }) => {
   const overdueCount = complaints.filter(
     (c) => c.status === 'ASSIGNED' && c.deadline && c.deadline < today
   ).length;
+  const upcomingDeadlineCount = complaints.filter(
+    (c) => c.status === 'ASSIGNED' && c.deadline && c.deadline >= today
+  ).length;
 
   const filtered = complaints.filter((c) => {
     if (filter === 'ALL') return true;
+    if (filter === 'OVERDUE') return c.status === 'ASSIGNED' && c.deadline && c.deadline < today;
     return c.status === filter;
   });
 
@@ -85,16 +125,15 @@ export const OfficerPortal = ({ user }) => {
       )}
 
       {/* Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-950 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+      <div className="bg-gradient-to-r from-blue-700 to-sky-600 rounded-3xl p-6 sm:p-8 text-white shadow-lg flex flex-col md:flex-row md:items-center md:justify-between gap-6">
         <div>
           <div className="flex items-center gap-2 text-blue-300 text-xs font-bold uppercase tracking-wider mb-1">
             <Briefcase className="w-4 h-4 text-blue-400" />
-            Department Work Order Dashboard • {user.department_name || 'Field Unit'}
+            Officer Portal{user.department_name ? ` · ${user.department_name}` : ''}
           </div>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight">{user.name}</h1>
           <p className="text-sm text-slate-300 mt-1 max-w-xl">
-            Inspect assigned municipal tickets, adjust officer triage priority, record field work
-            notes, and upload resolution proof photos.
+            Review your assigned grievances, track deadlines, and submit resolution evidence.
           </p>
         </div>
 
@@ -141,21 +180,27 @@ export const OfficerPortal = ({ user }) => {
 
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
           <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-2">
-            SLA Compliance
+            Upcoming Deadlines
           </span>
-          <div className="text-2xl font-black text-slate-900">
-            {complaints.length > 0
-              ? `${Math.round(((complaints.length - overdueCount) / complaints.length) * 100)}%`
-              : '100%'}
-          </div>
-          <div className="text-[11px] text-slate-400 mt-1">On-time delivery index</div>
+          <div className="text-2xl font-black text-slate-900">{upcomingDeadlineCount}</div>
+          <div className="text-[11px] text-slate-400 mt-1">Active work orders with a deadline</div>
         </div>
       </div>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-bold text-slate-900">My grievance locations</h2>
+          <span className="text-xs text-slate-500">
+            {complaints.length ? 'Only cases assigned to your account are shown.' : 'No assigned locations yet.'}
+          </span>
+        </div>
+        <GrievanceMap complaints={complaints} onSelectComplaint={handleOpenTimeline} />
+      </section>
 
       {/* Filter Row */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs">
-          {['ASSIGNED', 'RESOLVED', 'ALL'].map((st) => (
+          {['ASSIGNED', 'RESOLVED', 'ALL', 'OVERDUE'].map((st) => (
             <button
               key={st}
               onClick={() => setFilter(st)}
@@ -165,7 +210,7 @@ export const OfficerPortal = ({ user }) => {
                   : 'text-slate-500 hover:text-slate-900'
               }`}
             >
-              {st === 'ASSIGNED' ? 'Active Work Orders' : st === 'RESOLVED' ? 'Resolved Work Orders' : 'All Work Orders'}
+              {st === 'ASSIGNED' ? 'In Progress' : st === 'RESOLVED' ? 'Resolved' : st === 'OVERDUE' ? 'Overdue' : 'All Grievances'}
             </button>
           ))}
         </div>
@@ -274,7 +319,7 @@ export const OfficerPortal = ({ user }) => {
 
                     <div className="flex items-center gap-2 w-full sm:w-auto">
                       <button
-                        onClick={() => handleOpenTimeline(c)}
+                        onClick={() => navigate(`/officer/grievances/${c.complaint_id}`)}
                         className="px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition flex items-center gap-1.5 cursor-pointer"
                       >
                         <Eye className="w-3.5 h-3.5" />
@@ -303,7 +348,10 @@ export const OfficerPortal = ({ user }) => {
       {selectedForResolve && (
         <ResolveComplaintModal
           complaint={selectedForResolve}
-          onClose={() => setSelectedForResolve(null)}
+          onClose={() => {
+            setSelectedForResolve(null);
+            if (complaintId) navigate('/officer/dashboard');
+          }}
           onSuccess={(msg) => {
             refreshComplaints();
             showToast(msg);
@@ -316,7 +364,19 @@ export const OfficerPortal = ({ user }) => {
           complaint={selectedForTimeline}
           history={store.getStatusHistory(selectedForTimeline.complaint_id)}
           feedbacks={store.getFeedback(selectedForTimeline.complaint_id)}
-          onClose={() => setSelectedForTimeline(null)}
+          onClose={() => {
+            setSelectedForTimeline(null);
+            if (complaintId) navigate('/officer/dashboard');
+          }}
+          onResolve={
+            selectedForTimeline.status === 'ASSIGNED'
+              ? () => {
+                  const complaint = selectedForTimeline;
+                  setSelectedForTimeline(null);
+                  setSelectedForResolve(complaint);
+                }
+              : undefined
+          }
         />
       )}
     </div>
