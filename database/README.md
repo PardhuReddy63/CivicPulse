@@ -42,9 +42,10 @@ Get-Content .\schema.sql -Raw | & "C:\xampp\mysql\bin\mysql.exe" -u root civicpu
 ## Schema Entities & Relationships
 - **departments**: Department registry for the five grievance categories, including Public Health & Safety.
 - **users**: CITIZEN, OFFICER, ADMIN accounts with bcrypt hash, active, and verified flags.
-- **complaints**: Core ticket lifecycle (`PENDING` -> `ASSIGNED` -> `RESOLVED`), priority (`LOW`, `MEDIUM`, `HIGH`), deadline, officer assignments, and resolution notes.
+- **complaints**: Ticket lifecycle (`PENDING` -> `ASSIGNED` -> `IN_PROGRESS` -> `RESOLUTION_PENDING_REVIEW` -> `AWAITING_CITIZEN` -> `RESOLVED`), priority, deadline, officer assignments, and resolution notes. Rejected proof and citizen rejection return the grievance to its assigned officer.
 - **complaint_attachments**: `BEFORE` and `AFTER` photos with MIME type verification.
-- **complaint_feedback**: Citizen 1–5 star ratings. Ratings 1–2 trigger automated reopening to `PENDING` while preserving resolution history.
+- **complaint_feedback**: Per-cycle optional satisfaction ratings; ratings of 1–2 reopen the grievance to its assigned officer.
+- **complaint_resolution_verifications**: One timestamped `RESOLVED` or `NOT_RESOLVED` response per citizen and resolution cycle, separate from star ratings.
 - **complaint_status_history**: Immutable chronological audit trace of all state changes.
 - **otp_verifications**: Single-use, time-bound registration OTP tokens.
 - **password_reset_tokens**: Expiring password recovery tokens.
@@ -65,6 +66,22 @@ Get-Content .\migrations\001_configure_grievance_departments.sql -Raw |
 
 Department officers must be assigned to the matching department before an
 administrator can assign grievances in that category.
+
+## Safe resolution workflow migration
+
+Existing databases must apply `migrations/005_resolution_review_workflow.sql`
+before deploying the application changes. It widens status/history fields,
+expands the status check constraint, and creates the resolution-verification
+table; it does not drop tables or change existing grievance rows. Back up the
+database and confirm the target database before running it. Never run
+`schema.sql` against an existing database.
+
+From the repository root in PowerShell, after verifying the backup and target:
+
+```powershell
+Get-Content .\database\migrations\005_resolution_review_workflow.sql -Raw |
+  & "C:\xampp\mysql\bin\mysql.exe" -u root -p civicpulse_db
+```
 
 ## Local development administrator bootstrap
 

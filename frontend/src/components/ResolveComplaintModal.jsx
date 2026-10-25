@@ -14,11 +14,17 @@ export const ResolveComplaintModal = ({ complaint, onClose, onSuccess }) => {
     if (!file) return;
 
     if (file.size > 5 * 1024 * 1024) {
+      e.target.value = '';
+      setAfterImageFile(null);
+      setAfterImagePreview(null);
       setErrorMsg('Proof photo exceeds 5 MB size limit.');
       return;
     }
 
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      e.target.value = '';
+      setAfterImageFile(null);
+      setAfterImagePreview(null);
       setErrorMsg('Only JPEG, PNG, or WebP files are supported.');
       return;
     }
@@ -38,11 +44,15 @@ export const ResolveComplaintModal = ({ complaint, onClose, onSuccess }) => {
       setErrorMsg('Resolution summary describing physical field remediation is required.');
       return;
     }
+    if (!afterImageFile) {
+      setErrorMsg('Upload a JPEG, PNG, or WebP after-photo (maximum 5 MB) for administrator review.');
+      return;
+    }
 
     try {
       setIsSubmitting(true);
       await store.resolveComplaint(complaint.complaint_id, resolvedNotes.trim(), afterImageFile);
-      onSuccess(`Complaint #${complaint.complaint_id} marked as RESOLVED. Citizen has been invited to rate.`);
+      onSuccess(`Resolution evidence for grievance #${complaint.complaint_id} was submitted for administrator review.`);
       onClose();
     } catch (err) {
       setErrorMsg(err.message || 'Failed to record resolution.');
@@ -106,7 +116,7 @@ export const ResolveComplaintModal = ({ complaint, onClose, onSuccess }) => {
           {/* After Photo Proof Upload */}
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">
-              After Photographic Evidence Proof (Max 5 MB)
+              After Photographic Evidence Proof * (JPEG, PNG, or WebP; Max 5 MB)
             </label>
             <div className="border-2 border-dashed border-emerald-300 hover:border-emerald-500 rounded-xl p-4 text-center bg-emerald-50/30 transition">
               {afterImagePreview ? (
@@ -134,7 +144,7 @@ export const ResolveComplaintModal = ({ complaint, onClose, onSuccess }) => {
                     Upload completion proof photo
                   </span>
                   <span className="text-[10px] text-slate-400 block mt-0.5">
-                    Required for high-scrutiny categories (Roads, Water, Sanitation)
+                    Upload a clear JPEG, PNG, or WebP photo of the completed work.
                   </span>
                   <input
                     type="file"
@@ -149,9 +159,8 @@ export const ResolveComplaintModal = ({ complaint, onClose, onSuccess }) => {
 
           {/* Notice */}
           <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-600">
-            <strong>Citizen Review Guarantee:</strong> The citizen owner will review this outcome.
-            If the citizen awards 1 or 2 stars, this ticket will be automatically reopened to
-            PENDING.
+            <strong>Review workflow:</strong> An administrator must approve your notes and photo before
+            the citizen can verify the resolution. Rejected submissions return to you with the review reason.
           </div>
 
           {/* Actions */}
@@ -169,7 +178,7 @@ export const ResolveComplaintModal = ({ complaint, onClose, onSuccess }) => {
               className="px-5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
             >
               <CheckCircle className="w-3.5 h-3.5" />
-              {isSubmitting ? 'Recording...' : 'Mark as RESOLVED'}
+              {isSubmitting ? 'Submitting...' : 'Submit for Admin Review'}
             </button>
           </div>
         </form>

@@ -5,6 +5,7 @@ import { GrievanceMap } from './GrievanceMap';
 import { LodgeComplaintModal } from './LodgeComplaintModal';
 import { CitizenFeedbackModal } from './CitizenFeedbackModal';
 import { TimelineModal } from './TimelineModal';
+import { ProtectedEvidenceImage } from './ProtectedEvidenceImage';
 import {
   PlusCircle,
   FileText,
@@ -36,6 +37,7 @@ export const CitizenPortal = ({ user, openNewGrievance = false }) => {
   const [selectedForFeedback, setSelectedForFeedback] = useState(null);
   const [selectedForTimeline, setSelectedForTimeline] = useState(null);
   const [notification, setNotification] = useState(null);
+  const [verificationInProgress, setVerificationInProgress] = useState(null);
   const [activeTab, setActiveTab] = useState(() => {
     const view = searchParams.get('view');
 
@@ -104,7 +106,11 @@ export const CitizenPortal = ({ user, openNewGrievance = false }) => {
 
   const filteredComplaints = complaints
     .filter((complaint) => {
-      if (statusFilter !== 'ALL' && complaint.status !== statusFilter) return false;
+      if (statusFilter === 'IN_PROGRESS') {
+        if (complaint.status !== 'IN_PROGRESS') return false;
+      } else if (statusFilter !== 'ALL' && complaint.status !== statusFilter) {
+        return false;
+      }
       if (categoryFilter !== 'ALL' && complaint.category !== categoryFilter) return false;
       if (!searchText.trim()) return true;
       const query = searchText.trim().toLowerCase();
@@ -116,7 +122,13 @@ export const CitizenPortal = ({ user, openNewGrievance = false }) => {
   const totals = {
     total: complaints.length,
     pending: complaints.filter((c) => c.status === 'PENDING').length,
-    assigned: complaints.filter((c) => c.status === 'ASSIGNED').length,
+    assigned: complaints.filter((c) => [
+      'ASSIGNED',
+      'IN_PROGRESS',
+      'RESOLUTION_REJECTED',
+      'RESOLUTION_PENDING_REVIEW',
+      'AWAITING_CITIZEN',
+    ].includes(c.status)).length,
     resolved: complaints.filter((c) => c.status === 'RESOLVED').length,
   };
 
@@ -127,6 +139,32 @@ export const CitizenPortal = ({ user, openNewGrievance = false }) => {
 
   const handleOpenTimeline = (complaint) =>
     navigate(`/citizen/grievances/${complaint.complaint_id}`);
+
+  const handleVerifyResolution = async (complaint, decision) => {
+    setVerificationInProgress(complaint.complaint_id);
+    try {
+      const result = await store.verifyResolution(
+        complaint.complaint_id,
+        decision,
+        decision === 'RESOLVED'
+          ? 'Citizen confirmed the grievance is resolved.'
+          : 'Citizen reported the grievance is not resolved.'
+      );
+      refreshComplaints();
+      showToast(
+        decision === 'RESOLVED'
+          ? 'Resolution confirmed. This grievance is complete.'
+          : 'The grievance was reopened and returned to its assigned officer.',
+        decision === 'RESOLVED' ? 'success' : 'warn'
+      );
+      return result;
+    } catch (error) {
+      showToast(error.message || 'Your resolution response could not be recorded.', 'warn');
+      return null;
+    } finally {
+      setVerificationInProgress(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -159,10 +197,10 @@ export const CitizenPortal = ({ user, openNewGrievance = false }) => {
       {activeTab === 'home' && (
         <>
       {/* Hero Welcome Banner */}
-      <div className="bg-gradient-to-r from-blue-700 to-sky-600 rounded-3xl p-6 sm:p-8 text-white shadow-lg flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+      <div className="bg-gradient-to-r from-blue-800 via-blue-700 to-teal-700 rounded-3xl p-6 sm:p-8 text-white shadow-lg flex flex-col md:flex-row md:items-center md:justify-between gap-6">
         <div>
           <div className="flex items-center gap-2 text-blue-200 text-xs font-bold uppercase tracking-wider mb-1">
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            <ShieldCheck className="w-4 h-4 text-teal-300" />
             Citizen Portal • Verified Account
           </div>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
@@ -184,34 +222,34 @@ export const CitizenPortal = ({ user, openNewGrievance = false }) => {
 
       {/* Metrics Row - Derived from real database records */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+        <div className="bg-blue-50/70 p-5 rounded-2xl border border-blue-200 shadow-xs">
           <div className="flex items-center justify-between text-slate-500 mb-2">
             <span className="text-xs font-bold uppercase tracking-wider">Total Filed</span>
-            <FileText className="w-4 h-4 text-blue-600" />
+            <FileText className="w-4 h-4 text-blue-700" />
           </div>
           <div className="text-2xl font-black text-slate-900">{totals.total}</div>
           <div className="text-[11px] text-slate-400 mt-1">Recorded in municipal register</div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+        <div className="bg-amber-50/70 p-5 rounded-2xl border border-amber-200 shadow-xs">
           <div className="flex items-center justify-between text-slate-500 mb-2">
             <span className="text-xs font-bold uppercase tracking-wider">Pending Triage</span>
             <Clock className="w-4 h-4 text-amber-500" />
           </div>
           <div className="text-2xl font-black text-amber-600">{totals.pending}</div>
-          <div className="text-[11px] text-slate-400 mt-1">Awaiting admin assignment</div>
+          <div className="text-[11px] text-slate-400 mt-1">Awaiting an eligible officer or admin triage</div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+        <div className="bg-teal-50/70 p-5 rounded-2xl border border-teal-200 shadow-xs">
           <div className="flex items-center justify-between text-slate-500 mb-2">
             <span className="text-xs font-bold uppercase tracking-wider">In Progress</span>
-            <AlertCircle className="w-4 h-4 text-blue-600" />
+            <AlertCircle className="w-4 h-4 text-teal-700" />
           </div>
-          <div className="text-2xl font-black text-blue-600">{totals.assigned}</div>
+          <div className="text-2xl font-black text-teal-800">{totals.assigned}</div>
           <div className="text-[11px] text-slate-400 mt-1">Assigned to department officer</div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+        <div className="bg-emerald-50/70 p-5 rounded-2xl border border-emerald-200 shadow-xs">
           <div className="flex items-center justify-between text-slate-500 mb-2">
             <span className="text-xs font-bold uppercase tracking-wider">Resolved</span>
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
@@ -224,7 +262,7 @@ export const CitizenPortal = ({ user, openNewGrievance = false }) => {
         </>
       )}
 
-      {activeTab === 'grievances' ? (
+      {(activeTab === 'home' || activeTab === 'grievances') && (
         <>
           {/* Municipal GIS Map view */}
           <div className="space-y-2">
@@ -247,7 +285,7 @@ export const CitizenPortal = ({ user, openNewGrievance = false }) => {
           {complaints.length > 0 && (
             <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
                 <div className="flex items-center gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 text-xs">
-                {['ALL', 'PENDING', 'ASSIGNED', 'RESOLVED'].map((st) => (
+                {['ALL', 'PENDING', 'IN_PROGRESS', 'RESOLUTION_PENDING_REVIEW', 'AWAITING_CITIZEN', 'RESOLVED'].map((st) => (
                   <button
                     key={st}
                     onClick={() => setStatusFilter(st)}
@@ -257,7 +295,7 @@ export const CitizenPortal = ({ user, openNewGrievance = false }) => {
                         : 'text-slate-500 hover:text-slate-900'
                     }`}
                   >
-                    {st}
+                    {st === 'IN_PROGRESS' ? 'IN PROGRESS' : st.replaceAll('_', ' ')}
                   </button>
                 ))}
               </div>
@@ -291,7 +329,7 @@ export const CitizenPortal = ({ user, openNewGrievance = false }) => {
           {complaints.length === 0 ? (
             /* REQUIRED EMPTY STATE */
             <div className="bg-white rounded-3xl border border-slate-200 p-10 sm:p-16 text-center shadow-xs">
-              <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-4 border border-blue-100">
+              <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-700 flex items-center justify-center mx-auto mb-4 border border-blue-100">
                 <Inbox className="w-8 h-8" />
               </div>
               <h3 className="text-lg font-bold text-slate-900">
@@ -303,7 +341,7 @@ export const CitizenPortal = ({ user, openNewGrievance = false }) => {
               <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
                 <button
                   onClick={() => navigate('/citizen/grievances/new')}
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md hover:shadow-lg transition cursor-pointer active:scale-95"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-blue-700 hover:bg-blue-800 text-white font-bold text-xs shadow-md hover:shadow-lg transition cursor-pointer active:scale-95"
                 >
                   <PlusCircle className="w-4 h-4" />
                   <span>Lodge a Grievance</span>
@@ -329,7 +367,7 @@ export const CitizenPortal = ({ user, openNewGrievance = false }) => {
                         <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
                           #{c.complaint_id}
                         </span>
-                        <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
+                        <span className="text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md">
                           {c.category}
                         </span>
                       </div>
@@ -337,7 +375,7 @@ export const CitizenPortal = ({ user, openNewGrievance = false }) => {
                         className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
                           c.status === 'RESOLVED'
                             ? 'bg-emerald-100 text-emerald-800'
-                            : c.status === 'ASSIGNED'
+                            : ['ASSIGNED', 'RESOLUTION_REJECTED'].includes(c.status)
                             ? 'bg-blue-100 text-blue-800'
                             : 'bg-amber-100 text-amber-800'
                         }`}
@@ -376,7 +414,39 @@ export const CitizenPortal = ({ user, openNewGrievance = false }) => {
                     {c.resolution_cycle > 1 && (
                       <div className="mt-3 p-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-[11px] flex items-center gap-1.5 font-medium">
                         <RotateCcw className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                        <span>Reopened Ticket (Cycle #{c.resolution_cycle}) — Prior low rating received</span>
+                        <span>Reopened Ticket (Cycle #{c.resolution_cycle}) — Prior resolution needs more work</span>
+                      </div>
+                    )}
+                    {c.status === 'AWAITING_CITIZEN' && (
+                      <div className="mt-3 space-y-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
+                        <div className="text-xs font-bold text-emerald-900">Administrator-approved resolution</div>
+                        <p className="text-xs text-slate-700">{c.resolved_notes}</p>
+                        {c.resolved_image && (
+                          <ProtectedEvidenceImage
+                            complaintId={c.complaint_id}
+                            type="AFTER"
+                            alt="Administrator-approved after-resolution evidence"
+                            className="max-h-48 w-full rounded-lg object-contain bg-slate-100"
+                          />
+                        )}
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            disabled={verificationInProgress === c.complaint_id}
+                            onClick={() => handleVerifyResolution(c, 'RESOLVED')}
+                            className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-800 disabled:opacity-50"
+                          >
+                            Yes, resolved
+                          </button>
+                          <button
+                            type="button"
+                            disabled={verificationInProgress === c.complaint_id}
+                            onClick={() => handleVerifyResolution(c, 'NOT_RESOLVED')}
+                            className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-bold text-amber-800 hover:bg-amber-50 disabled:opacity-50"
+                          >
+                            No, not resolved
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -390,13 +460,13 @@ export const CitizenPortal = ({ user, openNewGrievance = false }) => {
                       View Timeline
                     </button>
 
-                    {c.status === 'RESOLVED' && (
+                    {c.status === 'RESOLVED' && !c.citizen_rating && (
                       <button
                         onClick={() => setSelectedForFeedback(c)}
                         className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 transition flex items-center gap-1.5 cursor-pointer shadow-xs"
                       >
                         <Star className="w-3.5 h-3.5 fill-white" />
-                        {c.citizen_rating ? `Update Rating (${c.citizen_rating}⭐)` : 'Rate Resolution'}
+                        Rate Resolution
                       </button>
                     )}
                   </div>
@@ -405,7 +475,9 @@ export const CitizenPortal = ({ user, openNewGrievance = false }) => {
             </div>
           )}
         </>
-      ) : activeTab === 'analytics' ? (
+      )}
+
+      {(activeTab === 'home' || activeTab === 'analytics') && (
         <div className="space-y-6">
           <div className="bg-white p-6 rounded-2xl border border-slate-200 space-y-4">
             <h3 className="text-sm font-bold text-slate-900">
@@ -431,7 +503,7 @@ export const CitizenPortal = ({ user, openNewGrievance = false }) => {
             </div>
           </div>
         </div>
-      ) : null}
+      )}
 
       {/* Modals */}
       {showLodgeModal && (
@@ -460,6 +532,10 @@ export const CitizenPortal = ({ user, openNewGrievance = false }) => {
           complaint={selectedForTimeline}
           history={store.getStatusHistory(selectedForTimeline.complaint_id)}
           feedbacks={store.getFeedback(selectedForTimeline.complaint_id)}
+          verifications={store.getResolutionVerifications?.(selectedForTimeline.complaint_id) || []}
+          canViewResolutionEvidence={
+            !['RESOLUTION_PENDING_REVIEW', 'RESOLUTION_REJECTED'].includes(selectedForTimeline.status)
+          }
           canRate={true}
           onClose={() => navigate('/citizen/dashboard')}
           onOpenFeedback={(c) => setSelectedForFeedback(c)}

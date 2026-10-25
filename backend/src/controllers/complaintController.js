@@ -1,15 +1,33 @@
 const complaintService = require('../services/complaintService');
 const complaintRepository = require('../repositories/complaintRepository');
 const feedbackRepository = require('../repositories/feedbackRepository');
+const resolutionVerificationRepository = require('../repositories/resolutionVerificationRepository');
 const path = require('path');
 const config = require('../config/env');
 
 function canViewComplaint(complaint, user) {
   return (
     user.role === 'ADMIN' ||
-    (user.role === 'CITIZEN' && complaint.user_id === user.user_id) ||
-    (user.role === 'OFFICER' && complaint.officer_id === user.user_id)
+    (user.role === 'CITIZEN' && Number(complaint.user_id) === Number(user.user_id)) ||
+    (user.role === 'OFFICER' && Number(complaint.officer_id) === Number(user.user_id))
   );
+}
+
+function hideUnapprovedResolution(complaint, user) {
+  if (
+    user.role !== 'CITIZEN' ||
+    !['RESOLUTION_PENDING_REVIEW', 'RESOLUTION_REJECTED'].includes(complaint.status)
+  ) {
+    return complaint;
+  }
+  return {
+    ...complaint,
+    resolved_image: null,
+    resolved_notes: null,
+    resolved_by: null,
+    resolved_by_name: null,
+    resolved_at: null,
+  };
 }
 
 class ComplaintController {
@@ -75,7 +93,7 @@ class ComplaintController {
 
       res.status(200).json({
         success: true,
-        data: result.complaints,
+        data: result.complaints.map((complaint) => hideUnapprovedResolution(complaint, req.user)),
         pagination: {
           page: result.page,
           limit: result.limit,
@@ -133,13 +151,19 @@ class ComplaintController {
 
       const attachments = await complaintRepository.getAttachments(complaintId);
       const feedback = await feedbackRepository.findByComplaintId(complaintId);
+      const resolutionVerifications = await resolutionVerificationRepository.findByComplaintId(complaintId);
+      const visibleComplaint = hideUnapprovedResolution(complaint, req.user);
+      const visibleAttachments = req.user.role === 'CITIZEN'
+        ? attachments.filter((attachment) => attachment.attachment_type === 'BEFORE')
+        : attachments;
 
       res.status(200).json({
         success: true,
         data: {
-          ...complaint,
-          attachments,
+          ...visibleComplaint,
+          attachments: visibleAttachments,
           feedback_history: feedback,
+          resolution_verifications: resolutionVerifications,
         },
       });
     } catch (err) {
@@ -169,6 +193,17 @@ class ComplaintController {
         return res.status(403).json({
           success: false,
           error: { code: 'FORBIDDEN', message: 'You are not authorized to view this evidence.' },
+        });
+      }
+
+      if (
+        req.user.role === 'CITIZEN' &&
+        req.params.type === 'AFTER' &&
+        ['RESOLUTION_PENDING_REVIEW', 'RESOLUTION_REJECTED'].includes(complaint.status)
+      ) {
+        return res.status(404).json({
+          success: false,
+          error: { code: 'EVIDENCE_NOT_FOUND', message: 'No administrator-approved resolution evidence is available.' },
         });
       }
 
@@ -251,6 +286,16 @@ class ComplaintController {
     }
   }
 
+  async startWork(req, res, next) {
+    try {
+      const complaintId = parseInt(req.params.complaintId, 10);
+      const result = await complaintService.startWork(complaintId, req.user);
+      res.status(200).json({ success: true, data: result });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   async setDeadline(req, res, next) {
     try {
       const complaintId = parseInt(req.params.complaintId, 10);
@@ -279,6 +324,36 @@ class ComplaintController {
         success: true,
         data: result,
       });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async reviewResolution(req, res, next) {
+    try {
+      const complaintId = parseInt(req.params.complaintId, 10);
+      const { decision, rejection_reason } = req.body;
+      const result = await complaintService.reviewResolution(complaintId, {
+        decision,
+        rejection_reason,
+        actor: req.user,
+      });
+      res.status(200).json({ success: true, data: result });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async verifyResolution(req, res, next) {
+    try {
+      const complaintId = parseInt(req.params.complaintId, 10);
+      const { decision, feedback_text } = req.body;
+      const result = await complaintService.verifyResolution(complaintId, {
+        decision,
+        feedback_text,
+        actor: req.user,
+      });
+      res.status(200).json({ success: true, data: result });
     } catch (err) {
       next(err);
     }
@@ -345,7 +420,12 @@ class ComplaintController {
         });
       }
 
-      const history = await complaintRepository.getStatusHistory(complaintId);
+      const fullHistory = await complaintRepository.getStatusHistory(complaintId);
+      const history = req.user.role === 'CITIZEN'
+        ? fullHistory.filter(
+          (entry) => !['RESOLUTION_PENDING_REVIEW', 'RESOLUTION_REJECTED'].includes(entry.new_status)
+        )
+        : fullHistory;
       res.status(200).json({
         success: true,
         data: history,

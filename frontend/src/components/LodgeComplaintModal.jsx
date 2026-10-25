@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { DEPARTMENTS } from '../constants';
 import { store } from '../services/store';
 import { GrievanceMap } from './GrievanceMap';
 import {
@@ -13,6 +14,8 @@ import {
 } from 'lucide-react';
 
 const subCategoryMap = {
+  Education: ['School Building Damage', 'Classroom Maintenance', 'School Sanitation', 'Drinking Water at School', 'School Safety Hazard'],
+  Revenue: ['Property Tax Payment', 'Incorrect Tax Assessment', 'Property Record Correction', 'Duplicate Tax Demand', 'Revenue Office Service Delay'],
   'Roads & Infrastructure': ['Pothole', 'Damaged Footpath', 'Missing Manhole Cover', 'Traffic Sign Broken', 'Road Cave-in'],
   'Water Works & Drainage': ['Water Contamination', 'Low Pressure', 'Main Pipeline Burst', 'Open Sewage Drain', 'Water Meter Leak'],
   'Electricity & Power': ['Streetlight Out', 'Transformer Sparking', 'Hanging Low Wire', 'Frequent Power Surge', 'Uncovered Feeder Box'],
@@ -20,23 +23,61 @@ const subCategoryMap = {
   'Public Health & Safety': ['Stagnant Mosquito Pool', 'Stray Animal Pack', 'Chemical Odor Leak', 'Food Adulteration Alert', 'Open Hazard Pit'],
 };
 
-const standardDepartments = Object.keys(subCategoryMap).map((name) => ({
+const normalizeDepartmentName = (departmentName) => String(departmentName ?? '')
+  .normalize('NFKD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .toLowerCase()
+  .replace(/&/g, ' and ')
+  .replace(/[^a-z0-9]+/g, ' ')
+  .trim()
+  .replace(/\s+/g, ' ');
+
+const normalizedSubCategoryMap = new Map(
+  Object.entries(subCategoryMap).map(([name, subcategories]) => [
+    normalizeDepartmentName(name),
+    subcategories,
+  ])
+);
+
+const departmentAliases = new Map([
+  ['roads', 'roads and infrastructure'],
+  ['public works', 'roads and infrastructure'],
+  ['water works', 'water works and drainage'],
+  ['water supply', 'water works and drainage'],
+  ['electricity', 'electricity and power'],
+  ['sanitation', 'sanitation and solid waste'],
+  ['public health', 'public health and safety'],
+  ['health services', 'public health and safety'],
+]);
+
+const getSubcategories = (departmentName) => {
+  const normalizedName = normalizeDepartmentName(departmentName);
+  const canonicalName = departmentAliases.get(normalizedName) || normalizedName;
+  return normalizedSubCategoryMap.get(canonicalName) || ['General Issue'];
+};
+
+const standardDepartments = DEPARTMENTS.map((name) => ({
   department_id: name,
   name,
 }));
 
 export const LodgeComplaintModal = ({ onClose, onSuccess }) => {
-  const configuredDepartments = store.getDepartments();
+  const departmentRecords = store.getDepartments();
+  const configuredDepartments = Array.isArray(departmentRecords)
+    ? departmentRecords.filter((department) => (
+      typeof department?.name === 'string' && department.name.trim()
+    ))
+    : [];
   const departments = configuredDepartments.length ? configuredDepartments : standardDepartments;
+  const initialCategory =
+    departments.find((department) => department.name === 'Roads & Infrastructure')?.name ||
+    departments[0]?.name ||
+    '';
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState(
-    departments.find((department) => department.name === 'Roads & Infrastructure')?.name ||
-    departments[0]?.name ||
-    ''
-  );
-  const [subCategory, setSubCategory] = useState('Pothole');
+  const [category, setCategory] = useState(initialCategory);
+  const [subCategory, setSubCategory] = useState(() => getSubcategories(initialCategory)[0]);
   const [location, setLocation] = useState('');
   const [latitude, setLatitude] = useState(null);
   const [longitude, setLongitude] = useState(null);
@@ -47,23 +88,40 @@ export const LodgeComplaintModal = ({ onClose, onSuccess }) => {
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
+  const [fieldErrors, setFieldErrors] = useState({});
   const [locating, setLocating] = useState(false);
+
+  const clearFieldError = (field) => {
+    setFieldErrors((current) => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  };
 
   const handleImageChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      setErrorMsg('Image file size exceeds the 5 MB maximum allowed limit.');
+    if (!Number.isFinite(file.size) || file.size > 5 * 1024 * 1024) {
+      setFieldErrors((current) => ({
+        ...current,
+        image: 'Choose an image smaller than 5 MB.',
+      }));
       return;
     }
 
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      setErrorMsg('Only JPEG, PNG, and WebP images are supported.');
+    if (typeof file.type !== 'string' || !['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setFieldErrors((current) => ({
+        ...current,
+        image: 'Only JPEG, PNG, and WebP images are supported.',
+      }));
       return;
     }
 
     setErrorMsg(null);
+    clearFieldError('image');
     setImageFile(file);
     const reader = new FileReader();
     reader.onload = () => {
@@ -108,17 +166,56 @@ export const LodgeComplaintModal = ({ onClose, onSuccess }) => {
     e.preventDefault();
     setErrorMsg(null);
 
-    if (!title.trim() || !description.trim() || !location.trim()) {
-      setErrorMsg('Please complete all mandatory fields marked with an asterisk (*).');
-      return;
+    const errors = {};
+    const requireText = (value, field, label) => {
+      if (typeof value !== 'string' || !value.trim()) {
+        errors[field] = `${label} is required.`;
+      }
+    };
+
+    requireText(title, 'title', 'Grievance heading');
+    if (typeof description !== 'string' || description.trim().length < 10) {
+      errors.description = 'Detailed description must contain at least 10 characters.';
+    }
+    requireText(location, 'location', 'Street address or landmark');
+
+    if (typeof category !== 'string' || !departments.some((department) => department.name === category)) {
+      errors.category = 'Select a valid department or category.';
+    } else if (category.length > 100) {
+      errors.category = 'Department or category must not exceed 100 characters.';
     }
 
+    const validSubcategories = getSubcategories(category);
+    if (typeof subCategory !== 'string' || !validSubcategories.includes(subCategory)) {
+      errors.subCategory = 'Select a valid sub-classification for the chosen category.';
+    } else if (subCategory.length > 100) {
+      errors.subCategory = 'Sub-classification must not exceed 100 characters.';
+    }
+
+    if (typeof title === 'string' && title.length > 255) {
+      errors.title = 'Grievance heading must not exceed 255 characters.';
+    }
+    if (typeof location === 'string' && location.length > 255) {
+      errors.location = 'Street address or landmark must not exceed 255 characters.';
+    }
+
+    const lat = Number(latitude);
+    const lng = Number(longitude);
     if (
       !coordsExplicitlySet ||
-      !Number.isFinite(Number(latitude)) ||
-      !Number.isFinite(Number(longitude))
+      !Number.isFinite(lat) ||
+      lat < -90 ||
+      lat > 90 ||
+      !Number.isFinite(lng) ||
+      lng < -180 ||
+      lng > 180
     ) {
-      setErrorMsg('Select the complaint location on the map or enter its latitude and longitude.');
+      errors.coordinates = 'Select a valid map location with latitude and longitude.';
+    }
+
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setErrorMsg('Please correct the highlighted fields before continuing.');
       return;
     }
 
@@ -129,7 +226,7 @@ export const LodgeComplaintModal = ({ onClose, onSuccess }) => {
     setErrorMsg(null);
     try {
       setIsSubmitting(true);
-      await store.createComplaint({
+      const created = await store.createComplaint({
         title: title.trim(),
         description: description.trim(),
         category,
@@ -141,7 +238,11 @@ export const LodgeComplaintModal = ({ onClose, onSuccess }) => {
         imageFile: imageFile,
       });
 
-      onSuccess('Grievance lodged successfully! Status is set to PENDING for municipal administrator assignment.');
+      onSuccess(
+        created.status === 'ASSIGNED'
+          ? 'Grievance lodged and automatically assigned to an eligible department officer.'
+          : 'Grievance lodged. No eligible active, verified officer is currently available; it is pending administrator triage.'
+      );
       onClose();
     } catch (err) {
       setErrorMsg(err.message || 'Failed to submit grievance.');
@@ -188,7 +289,7 @@ export const LodgeComplaintModal = ({ onClose, onSuccess }) => {
             className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4 pt-2 sm:px-6 sm:pb-6 sm:pt-3 space-y-4"
           >
             {errorMsg && (
-              <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
+              <div role="alert" className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
                 <span>{errorMsg}</span>
               </div>
@@ -196,18 +297,24 @@ export const LodgeComplaintModal = ({ onClose, onSuccess }) => {
 
             {/* Title */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
+              <label htmlFor="grievance-title" className="block text-xs font-bold text-slate-700 mb-1">
                 Grievance Heading / Summary *
               </label>
               <input
+                id="grievance-title"
                 type="text"
                 required
                 value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                onChange={(e) => {
+                  setTitle(e.target.value);
+                  clearFieldError('title');
+                }}
+                aria-invalid={Boolean(fieldErrors.title)}
                 placeholder="e.g. Hazardous Pothole near Indiranagar Bus Shelter"
                 className="w-full text-xs p-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
                 maxLength={255}
               />
+              {fieldErrors.title && <p className="mt-1 text-xs text-rose-700">{fieldErrors.title}</p>}
             </div>
 
             {/* Category & Subcategory */}
@@ -218,16 +325,23 @@ export const LodgeComplaintModal = ({ onClose, onSuccess }) => {
                 </p>
               )}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label htmlFor="grievance-category" className="block text-xs font-bold text-slate-700 mb-1">
                   Department / Category *
                 </label>
                 <select
+                  id="grievance-category"
                   value={category}
                   onChange={(e) => {
-                    setCategory(e.target.value);
-                    const firstSub = subCategoryMap[e.target.value]?.[0] || 'General';
-                    setSubCategory(firstSub);
+                    const nextCategory = e.target.value;
+                    const nextSubcategories = getSubcategories(nextCategory);
+                    setCategory(nextCategory);
+                    setSubCategory((current) => (
+                      nextSubcategories.includes(current) ? current : nextSubcategories[0]
+                    ));
+                    clearFieldError('category');
+                    clearFieldError('subCategory');
                   }}
+                  aria-invalid={Boolean(fieldErrors.category)}
                   className="w-full text-xs p-3 rounded-xl border border-slate-300 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden cursor-pointer"
                 >
                   {departments.map((d) => (
@@ -236,30 +350,37 @@ export const LodgeComplaintModal = ({ onClose, onSuccess }) => {
                     </option>
                   ))}
                 </select>
+                {fieldErrors.category && <p className="mt-1 text-xs text-rose-700">{fieldErrors.category}</p>}
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label htmlFor="grievance-subcategory" className="block text-xs font-bold text-slate-700 mb-1">
                   Sub-Classification
                 </label>
                 <select
+                  id="grievance-subcategory"
                   value={subCategory}
-                  onChange={(e) => setSubCategory(e.target.value)}
-                  className="w-full text-xs p-3 rounded-xl border border-slate-300 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden cursor-pointer"
+                  onChange={(e) => {
+                    setSubCategory(e.target.value);
+                    clearFieldError('subCategory');
+                  }}
+                  aria-invalid={Boolean(fieldErrors.subCategory)}
+                  className="w-full min-w-0 rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
                 >
-                  {(subCategoryMap[category] || ['General Issue']).map((sub) => (
+                  {getSubcategories(category).map((sub) => (
                     <option key={sub} value={sub}>
                       {sub}
                     </option>
                   ))}
                 </select>
+                {fieldErrors.subCategory && <p className="mt-1 text-xs text-rose-700">{fieldErrors.subCategory}</p>}
               </div>
             </div>
 
             {/* Location & GPS Coordinate Picking */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="block text-xs font-bold text-slate-700">
+                <label htmlFor="grievance-location" className="block text-xs font-bold text-slate-700">
                   Street Address / Landmark *
                 </label>
                 <div className="flex items-center gap-2">
@@ -284,14 +405,20 @@ export const LodgeComplaintModal = ({ onClose, onSuccess }) => {
               </div>
 
               <input
+                id="grievance-location"
                 type="text"
                 required
                 value={location}
-                onChange={(e) => setLocation(e.target.value)}
+                onChange={(e) => {
+                  setLocation(e.target.value);
+                  clearFieldError('location');
+                }}
+                aria-invalid={Boolean(fieldErrors.location || fieldErrors.coordinates)}
                 placeholder="e.g. 5th Cross Road, opposite Corporation Bank, Ward 12"
                 className="w-full text-xs p-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
                 maxLength={255}
               />
+              {fieldErrors.location && <p className="text-xs text-rose-700">{fieldErrors.location}</p>}
 
               {/* OpenStreetMap location picker */}
               {showMapPicker && (
@@ -321,21 +448,28 @@ export const LodgeComplaintModal = ({ onClose, onSuccess }) => {
                   </p>
                 </div>
               )}
+              {fieldErrors.coordinates && <p className="text-xs text-rose-700">{fieldErrors.coordinates}</p>}
             </div>
 
             {/* Detailed Description */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
+              <label htmlFor="grievance-description" className="block text-xs font-bold text-slate-700 mb-1">
                 Detailed Description & Impact *
               </label>
               <textarea
+                id="grievance-description"
                 required
                 rows={3}
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                onChange={(e) => {
+                  setDescription(e.target.value);
+                  clearFieldError('description');
+                }}
+                aria-invalid={Boolean(fieldErrors.description)}
                 placeholder="Provide exact details of the situation, duration of the issue, and immediate hazards..."
                 className="w-full text-xs p-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
               />
+              {fieldErrors.description && <p className="mt-1 text-xs text-rose-700">{fieldErrors.description}</p>}
             </div>
 
             {/* Before Photographic Evidence */}
@@ -356,6 +490,7 @@ export const LodgeComplaintModal = ({ onClose, onSuccess }) => {
                       onClick={() => {
                         setImagePreview(null);
                         setImageFile(null);
+                        clearFieldError('image');
                       }}
                       className="absolute -top-2 -right-2 bg-rose-600 text-white p-1 rounded-full text-xs shadow-md cursor-pointer"
                     >
@@ -372,6 +507,7 @@ export const LodgeComplaintModal = ({ onClose, onSuccess }) => {
                       Uploaded photos serve as baseline proof for officer before/after remediation
                     </span>
                     <input
+                      id="grievance-image"
                       type="file"
                       accept="image/jpeg,image/png,image/webp"
                       onChange={handleImageChange}
@@ -380,6 +516,7 @@ export const LodgeComplaintModal = ({ onClose, onSuccess }) => {
                   </label>
                 )}
               </div>
+              {fieldErrors.image && <p className="mt-1 text-xs text-rose-700">{fieldErrors.image}</p>}
             </div>
 
             {/* Next / Proceed Button */}
@@ -409,7 +546,7 @@ export const LodgeComplaintModal = ({ onClose, onSuccess }) => {
                 Please verify your grievance details before submitting:
               </div>
               <p className="text-[11px] text-blue-800">
-                Once lodged, this grievance will be logged in the immutable municipal audit registry and queued for administrative assignment.
+                Once lodged, the grievance will be logged and assigned to an active, verified officer in the matching department when available. If none is eligible, it remains pending in the administrator triage queue.
               </p>
             </div>
 

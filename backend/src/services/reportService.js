@@ -7,7 +7,16 @@ class ReportService {
     const rows = await db.query(
       `SELECT status, COUNT(*) as count FROM complaints GROUP BY status`
     );
-    const totals = { PENDING: 0, ASSIGNED: 0, RESOLVED: 0, TOTAL: 0 };
+    const totals = {
+      PENDING: 0,
+      ASSIGNED: 0,
+      IN_PROGRESS: 0,
+      RESOLUTION_REJECTED: 0,
+      RESOLUTION_PENDING_REVIEW: 0,
+      AWAITING_CITIZEN: 0,
+      RESOLVED: 0,
+      TOTAL: 0,
+    };
     rows.forEach(r => {
       totals[r.status] = r.count;
       totals.TOTAL += r.count;
@@ -53,9 +62,9 @@ class ReportService {
     return await db.query(
       `SELECT u.user_id, u.name, d.name as department_name,
               COUNT(c.complaint_id) as total_assigned,
-              SUM(CASE WHEN c.status = 'ASSIGNED' THEN 1 ELSE 0 END) as active_cases,
+              SUM(CASE WHEN c.status IN ('ASSIGNED', 'IN_PROGRESS', 'RESOLUTION_REJECTED', 'RESOLUTION_PENDING_REVIEW', 'AWAITING_CITIZEN') THEN 1 ELSE 0 END) as active_cases,
               SUM(CASE WHEN c.status = 'RESOLVED' THEN 1 ELSE 0 END) as resolved_cases,
-              SUM(CASE WHEN c.status = 'ASSIGNED' AND c.deadline < CURRENT_DATE() THEN 1 ELSE 0 END) as overdue_cases
+              SUM(CASE WHEN c.status IN ('ASSIGNED', 'IN_PROGRESS', 'RESOLUTION_REJECTED') AND c.deadline < CURRENT_DATE() THEN 1 ELSE 0 END) as overdue_cases
        FROM users u
        LEFT JOIN departments d ON u.department_id = d.department_id
        LEFT JOIN complaints c ON u.user_id = c.officer_id
@@ -71,7 +80,16 @@ class ReportService {
       `SELECT status, COUNT(*) as count FROM complaints WHERE user_id = ? GROUP BY status`,
       [userId]
     );
-    const totals = { PENDING: 0, ASSIGNED: 0, RESOLVED: 0, TOTAL: 0 };
+    const totals = {
+      PENDING: 0,
+      ASSIGNED: 0,
+      IN_PROGRESS: 0,
+      RESOLUTION_REJECTED: 0,
+      RESOLUTION_PENDING_REVIEW: 0,
+      AWAITING_CITIZEN: 0,
+      RESOLVED: 0,
+      TOTAL: 0,
+    };
     rows.forEach(r => {
       totals[r.status] = r.count;
       totals.TOTAL += r.count;

@@ -98,9 +98,8 @@ export const CitizenFeedbackModal = ({ complaint, onClose, onSuccess }) => {
               <RotateCcw className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
               <div>
                 <strong className="block font-bold">Automated Reopening Active (Spec F06)</strong>
-                Because this rating is 1 or 2 stars, this grievance will automatically return to{' '}
-                <span className="font-bold underline">PENDING</span> status for administrative
-                re-triage. The previous officer resolution notes and evidence will be preserved in
+                Because this rating is 1 or 2 stars, this grievance will return to its assigned officer
+                for further work. The previous officer resolution notes and evidence will be preserved in
                 the permanent audit trail.
               </div>
             </div>

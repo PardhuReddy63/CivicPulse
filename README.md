@@ -100,10 +100,15 @@ Open `http://localhost:5173`. `VITE_API_BASE_URL` defaults to the Express API. `
 ## Authentication and workflow
 
 - Citizens register with a password, verify their email using the emailed OTP, and then sign in. Officer/admin accounts are provisioned by an administrator.
-- Admin assigns pending complaints to an active officer and can set priority/deadline.
-- The assigned officer records resolution notes and optional after-photo.
-- A citizen feedback rating of 1–2 reopens the complaint while preserving previous resolution fields and feedback/status history; ratings 3–5 leave it resolved.
+- New complaints are assigned transactionally to the least-loaded active, verified officer in the matching department, with a stable user-ID tie-break. If no eligible officer exists, the grievance remains pending in the admin triage queue.
+- Administrators can still assign or reassign eligible officers and set priority/deadline.
+- The assigned officer submits resolution notes and a required JPEG, PNG, or WebP after-photo for administrator review.
+- Admin approval makes the evidence available to the citizen; rejection returns the work to the officer with a required reason. The citizen then confirms or disputes the approved resolution.
+- A citizen's "not resolved" response or a 1–2 star satisfaction rating returns the grievance to its assigned officer while preserving previous resolution evidence and history; ratings 3–5 leave it resolved.
+- Resolution verification decisions are stored separately from optional star ratings so analytics do not treat a yes/no response as a fabricated rating.
 - Backend routes enforce JWT authentication, roles, ownership, assignment, and valid lifecycle transitions.
+
+Existing databases must apply [migration 005](./database/migrations/005_resolution_review_workflow.sql) before deploying this workflow. Back up and verify the target database first; never run `database/schema.sql` against an existing database.
 
 ## Map tiles
 

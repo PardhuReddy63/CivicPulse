@@ -54,12 +54,6 @@ class CivicPulseStore {
     const response = await ApiClient.login({ identifier, password });
     ApiClient.setToken(response.data.token);
     this.setCurrentUser(response.data.user);
-    try {
-      await this.loadUserData(response.data.user);
-    } catch (error) {
-      this.logout();
-      throw error;
-    }
     return response.data.user;
   }
 
@@ -163,6 +157,10 @@ class CivicPulseStore {
     return this.details.get(String(complaintId))?.feedback || [];
   }
 
+  getResolutionVerifications(complaintId) {
+    return this.details.get(String(complaintId))?.resolutionVerifications || [];
+  }
+
   getAuditLogs() {
     return this.auditLogs;
   }
@@ -176,6 +174,7 @@ class CivicPulseStore {
     this.details.set(String(complaintId), {
       history: historyResult.data || [],
       feedback: detail.feedback_history || [],
+      resolutionVerifications: detail.resolution_verifications || [],
     });
     return detail;
   }
@@ -203,8 +202,32 @@ class CivicPulseStore {
     return response.data;
   }
 
+  async reviewResolution(complaintId, decision, rejectionReason = '') {
+    const response = await ApiClient.reviewResolution(complaintId, {
+      decision,
+      rejection_reason: rejectionReason,
+    });
+    await this.loadUserData();
+    return response.data;
+  }
+
+  async verifyResolution(complaintId, decision, feedbackText = '') {
+    const response = await ApiClient.verifyResolution(complaintId, {
+      decision,
+      feedback_text: feedbackText,
+    });
+    await this.refreshComplaints();
+    return response.data;
+  }
+
   async updateOfficerPriority(complaintId, priority) {
     const response = await ApiClient.updateOfficerPriority(complaintId, priority);
+    await this.refreshComplaints();
+    return response.data;
+  }
+
+  async startWork(complaintId) {
+    const response = await ApiClient.startWork(complaintId);
     await this.refreshComplaints();
     return response.data;
   }
@@ -242,7 +265,16 @@ class CivicPulseStore {
         totals.TOTAL += 1;
         return totals;
       },
-      { PENDING: 0, ASSIGNED: 0, RESOLVED: 0, TOTAL: 0 }
+      {
+        PENDING: 0,
+        ASSIGNED: 0,
+        IN_PROGRESS: 0,
+        RESOLUTION_REJECTED: 0,
+        RESOLUTION_PENDING_REVIEW: 0,
+        AWAITING_CITIZEN: 0,
+        RESOLVED: 0,
+        TOTAL: 0,
+      }
     );
   }
 

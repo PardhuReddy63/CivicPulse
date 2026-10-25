@@ -1,5 +1,5 @@
 function assertAssignable(status) {
-  if (status !== 'PENDING' && status !== 'ASSIGNED') {
+  if (!['PENDING', 'ASSIGNED', 'RESOLUTION_REJECTED'].includes(status)) {
     const error = new Error('Only pending or assigned complaints can be assigned or reassigned.');
     error.status = 409;
     error.code = 'INVALID_STATUS_TRANSITION';
@@ -8,8 +8,17 @@ function assertAssignable(status) {
 }
 
 function assertResolvable(status) {
-  if (status !== 'ASSIGNED') {
-    const error = new Error('Only an assigned complaint can be resolved.');
+  if (!['ASSIGNED', 'IN_PROGRESS', 'RESOLUTION_REJECTED'].includes(status)) {
+    const error = new Error('Only an assigned, in-progress, or rejected-resolution grievance can be submitted for review.');
+    error.status = 409;
+    error.code = 'INVALID_STATUS_TRANSITION';
+    throw error;
+  }
+}
+
+function assertStartable(status) {
+  if (!['ASSIGNED', 'RESOLUTION_REJECTED'].includes(status)) {
+    const error = new Error('Only an assigned or revision-requested grievance can be started.');
     error.status = 409;
     error.code = 'INVALID_STATUS_TRANSITION';
     throw error;
@@ -28,7 +37,13 @@ function parseRating(value) {
 }
 
 function statusAfterFeedback(rating) {
-  return rating <= 2 ? 'PENDING' : 'RESOLVED';
+  return rating <= 2 ? 'ASSIGNED' : 'RESOLVED';
 }
 
-module.exports = { assertAssignable, assertResolvable, parseRating, statusAfterFeedback };
+module.exports = {
+  assertAssignable,
+  assertResolvable,
+  assertStartable,
+  parseRating,
+  statusAfterFeedback,
+};

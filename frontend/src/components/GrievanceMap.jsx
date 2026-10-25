@@ -36,10 +36,14 @@ function complaintCoordinates(complaint) {
 }
 
 function markerColor(status, priority) {
-  if (status === 'RESOLVED') return '#10b981';
-  if (status === 'ASSIGNED') return '#2563eb';
+  if (status === 'RESOLVED') return '#059669';
+  if (status === 'AWAITING_CITIZEN') return '#2563eb';
+  if (status === 'RESOLUTION_REJECTED') return '#d97706';
+  if (status === 'RESOLUTION_PENDING_REVIEW') return '#7c3aed';
+  if (status === 'IN_PROGRESS') return '#0284c7';
+  if (status === 'ASSIGNED') return '#0f766e';
   if (priority === 'HIGH') return '#f43f5e';
-  return '#f59e0b';
+  return '#d97706';
 }
 
 function MapController({ center, zoom }) {
@@ -172,7 +176,7 @@ export const GrievanceMap = ({
 
       <div className="z-10 flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white px-4 py-2.5">
         <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
-          <Navigation className="h-4 w-4 text-blue-600" />
+          <Navigation className="h-4 w-4 text-blue-700" />
           <span>Civic GIS Map</span>
           <span className="text-[10px] font-medium text-slate-400">
             ({validComplaints.length} plotted complaint{validComplaints.length === 1 ? '' : 's'})
@@ -226,7 +230,7 @@ export const GrievanceMap = ({
       </div>
 
       {selectableLocation && (
-        <div className="z-10 flex flex-wrap items-center justify-between gap-2 bg-blue-600 px-4 py-1.5 text-xs font-medium text-white">
+        <div className="z-10 flex flex-wrap items-center justify-between gap-2 bg-blue-700 px-4 py-1.5 text-xs font-medium text-white">
           <span>Select a point on the map, enter coordinates, or request device location.</span>
           {pickedCoord && (
             <span className="font-mono">
@@ -295,7 +299,7 @@ export const GrievanceMap = ({
                         <span className="text-[10px] font-bold">{complaint.status}</span>
                       </div>
                       <h4 className="mb-1 text-xs font-bold">{complaint.title}</h4>
-                      <div className="mb-1 text-[11px] font-semibold text-blue-600">{complaint.category}</div>
+                      <div className="mb-1 text-[11px] font-semibold text-blue-700">{complaint.category}</div>
                       <div className="mb-2 flex items-start gap-1 text-[11px] text-slate-500">
                         <MapPin className="mt-0.5 h-3 w-3 shrink-0 text-rose-500" />
                         <span>{complaint.location || 'Address not provided'}</span>
@@ -305,7 +309,7 @@ export const GrievanceMap = ({
                           <button
                             type="button"
                             onClick={() => onSelectComplaint(complaint)}
-                            className="flex items-center gap-1 rounded-lg bg-blue-600 px-2 py-1 text-[11px] font-bold text-white"
+                            className="flex items-center gap-1 rounded-lg bg-blue-700 px-2 py-1 text-[11px] font-bold text-white"
                           >
                             <Eye className="h-3 w-3" />
                             Details
@@ -333,8 +337,8 @@ export const GrievanceMap = ({
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-white px-4 py-2 text-[11px] text-slate-600">
         <div className="flex flex-wrap items-center gap-3">
           <span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-amber-500" />Pending</span>
-          <span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-blue-600" />Assigned</span>
-          <span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-emerald-500" />Resolved</span>
+          <span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-teal-700" />Assigned</span>
+          <span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-emerald-600" />Resolved</span>
         </div>
         <span className="text-[10px] text-slate-400">
           Map tiles &copy; OpenStreetMap contributors

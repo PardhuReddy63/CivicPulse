@@ -1,6 +1,7 @@
 const {
   assertAssignable,
   assertResolvable,
+  assertStartable,
   parseRating,
   statusAfterFeedback,
 } = require('../../src/services/workflowRules');
@@ -28,13 +29,32 @@ describe('Backend complaint lifecycle rules', () => {
 
   test('only assigned complaints can be resolved', () => {
     expect(() => assertResolvable('ASSIGNED')).not.toThrow();
+    expect(() => assertResolvable('IN_PROGRESS')).not.toThrow();
     expect(captureError(() => assertResolvable('PENDING'))).toMatchObject({
       code: 'INVALID_STATUS_TRANSITION',
       status: 409,
     });
   });
 
-  test.each([[1, 'PENDING'], [2, 'PENDING'], [3, 'RESOLVED'], [4, 'RESOLVED'], [5, 'RESOLVED']])(
+  test.each(['ASSIGNED', 'RESOLUTION_REJECTED'])(
+    '%s complaints can be started by the assigned officer',
+    (status) => {
+      expect(() => assertStartable(status)).not.toThrow();
+    }
+  );
+
+  test('complaints outside assigned or revision-requested states cannot be started', () => {
+    expect(captureError(() => assertStartable('IN_PROGRESS'))).toMatchObject({
+      code: 'INVALID_STATUS_TRANSITION',
+      status: 409,
+    });
+    expect(captureError(() => assertStartable('RESOLVED'))).toMatchObject({
+      code: 'INVALID_STATUS_TRANSITION',
+      status: 409,
+    });
+  });
+
+  test.each([[1, 'ASSIGNED'], [2, 'ASSIGNED'], [3, 'RESOLVED'], [4, 'RESOLVED'], [5, 'RESOLVED']])(
     'rating %i leaves the complaint in %s',
     (rating, expectedStatus) => {
       expect(statusAfterFeedback(rating)).toBe(expectedStatus);

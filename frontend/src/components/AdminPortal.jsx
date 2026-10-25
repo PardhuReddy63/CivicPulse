@@ -42,6 +42,7 @@ export const AdminPortal = ({ user, initialTab = 'triage' }) => {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [toast, setToast] = useState(null);
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
 
   const departments = store.getDepartments();
 
@@ -61,6 +62,16 @@ export const AdminPortal = ({ user, initialTab = 'triage' }) => {
   }, []);
 
   React.useEffect(() => {
+    const refreshDashboard = () => {
+      store.refreshComplaints().catch((error) => {
+        showToast(error.message || 'Grievances could not be refreshed.');
+      });
+    };
+    const intervalId = window.setInterval(refreshDashboard, 10000);
+    return () => window.clearInterval(intervalId);
+  }, []);
+
+  React.useEffect(() => {
     const view = searchParams.get('view');
     setActiveTab(view === 'analytics' ? 'analytics' : view === 'map' ? 'map' : initialTab);
     if (view === 'assign') setStatusFilter('PENDING');
@@ -73,7 +84,7 @@ export const AdminPortal = ({ user, initialTab = 'triage' }) => {
 
   const today = new Date().toISOString().split('T')[0];
   const overdueCount = complaints.filter(
-    (c) => c.status === 'ASSIGNED' && c.deadline && c.deadline < today
+    (c) => ['ASSIGNED', 'IN_PROGRESS', 'RESOLUTION_REJECTED'].includes(c.status) && c.deadline && c.deadline < today
   ).length;
 
   const totals = store.getTotals();
@@ -115,7 +126,11 @@ export const AdminPortal = ({ user, initialTab = 'triage' }) => {
   }, [complaintId, complaints, navigate]);
 
   const filteredComplaints = complaints.filter((c) => {
-    if (statusFilter !== 'ALL' && c.status !== statusFilter) return false;
+    if (statusFilter === 'ACTIVE') {
+      if (!['ASSIGNED', 'IN_PROGRESS', 'RESOLUTION_REJECTED'].includes(c.status)) return false;
+    } else if (statusFilter !== 'ALL' && c.status !== statusFilter) {
+      return false;
+    }
     if (categoryFilter !== 'ALL' && c.category !== categoryFilter) return false;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
@@ -164,6 +179,29 @@ export const AdminPortal = ({ user, initialTab = 'triage' }) => {
     }
   };
 
+  const handleReviewResolution = async (decision, rejectionReason) => {
+    if (!selectedForTimeline) return;
+    setReviewSubmitting(true);
+    try {
+      const updated = await store.reviewResolution(
+        selectedForTimeline.complaint_id,
+        decision,
+        rejectionReason
+      );
+      setSelectedForTimeline(updated);
+      refreshAll();
+      showToast(
+        decision === 'APPROVE'
+          ? 'Resolution evidence approved. The citizen can now verify it.'
+          : 'Resolution evidence rejected and returned to the assigned officer.'
+      );
+    } catch (error) {
+      showToast(error.message || 'Resolution review could not be saved.');
+    } finally {
+      setReviewSubmitting(false);
+    }
+  };
+
   React.useEffect(() => {
     if (activeTab === 'officerApplications') {
       loadOfficerApplications(applicationStatusFilter);
@@ -205,9 +243,9 @@ export const AdminPortal = ({ user, initialTab = 'triage' }) => {
     <div className="space-y-6">
       {/* Toast Notification */}
       {toast && (
-        <div className="p-4 rounded-xl shadow-lg border border-purple-300 bg-purple-50 text-purple-900 text-xs font-semibold flex items-center justify-between">
+        <div className="p-4 rounded-xl shadow-lg border border-emerald-300 bg-emerald-50 text-emerald-900 text-xs font-semibold flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Check className="w-4 h-4 text-purple-600 shrink-0" />
+            <Check className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>{toast}</span>
           </div>
           <button onClick={() => setToast(null)} className="text-slate-400 hover:text-slate-600">
@@ -217,10 +255,10 @@ export const AdminPortal = ({ user, initialTab = 'triage' }) => {
       )}
 
       {/* Admin Hero Header */}
-      <div className="bg-gradient-to-r from-blue-700 to-sky-600 rounded-3xl p-6 sm:p-8 text-white shadow-lg flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+      <div className="bg-gradient-to-r from-blue-800 via-blue-700 to-teal-700 rounded-3xl p-6 sm:p-8 text-white shadow-lg flex flex-col md:flex-row md:items-center md:justify-between gap-6">
         <div>
-          <div className="flex items-center gap-2 text-purple-300 text-xs font-bold uppercase tracking-wider mb-1">
-            <ShieldAlert className="w-4 h-4 text-purple-400" />
+          <div className="flex items-center gap-2 text-teal-100 text-xs font-bold uppercase tracking-wider mb-1">
+            <ShieldAlert className="w-4 h-4 text-teal-300" />
             Administrator Portal
           </div>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight">Welcome, {user.name}</h1>
@@ -246,8 +284,30 @@ export const AdminPortal = ({ user, initialTab = 'triage' }) => {
         </div>
       </div>
 
+      {totals.PENDING > 0 && (
+        <div
+          role="status"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-xs text-amber-950"
+        >
+          <span>
+            <strong>{totals.PENDING} grievance(s) need assignment.</strong>{' '}
+            No eligible active, verified officer was available for automatic assignment or the grievance is awaiting triage.
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('triage');
+              setStatusFilter('PENDING');
+            }}
+            className="rounded-lg bg-amber-700 px-3 py-2 font-bold text-white hover:bg-amber-800"
+          >
+            Review pending queue
+          </button>
+        </div>
+      )}
+
       {/* KPI Stat Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
           <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-2">
             Total Intake
@@ -256,31 +316,43 @@ export const AdminPortal = ({ user, initialTab = 'triage' }) => {
           <div className="text-[11px] text-slate-400 mt-1">Grievances in the database</div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-amber-200 bg-amber-50/30 shadow-xs">
+        <div className="p-5 rounded-2xl border border-amber-200 bg-amber-50/70 shadow-xs">
           <span className="text-xs font-bold uppercase tracking-wider text-amber-600 block mb-2">
             Pending Triage
           </span>
           <div className="text-2xl font-black text-amber-600">{totals.PENDING}</div>
-          <div className="text-[11px] text-amber-700 mt-1">Requires officer assignment</div>
+          <div className="text-[11px] text-amber-700 mt-1">Awaiting eligible officer or admin triage</div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-blue-200 bg-blue-50/30 shadow-xs">
-          <span className="text-xs font-bold uppercase tracking-wider text-blue-600 block mb-2">
+        <div className="p-5 rounded-2xl border border-teal-200 bg-teal-50/70 shadow-xs">
+          <span className="text-xs font-bold uppercase tracking-wider text-teal-800 block mb-2">
             Active Investigations
           </span>
-          <div className="text-2xl font-black text-blue-600">{totals.ASSIGNED}</div>
-          <div className="text-[11px] text-blue-700 mt-1">Assigned & in remediation</div>
+          <div className="text-2xl font-black text-teal-800">
+            {totals.ASSIGNED + totals.IN_PROGRESS + totals.RESOLUTION_REJECTED}
+          </div>
+          <div className="text-[11px] text-teal-800 mt-1">Assigned, in progress, or returned for revision</div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-emerald-200 bg-emerald-50/30 shadow-xs">
+        <div className="p-5 rounded-2xl border border-emerald-200 bg-emerald-50/70 shadow-xs">
           <span className="text-xs font-bold uppercase tracking-wider text-emerald-600 block mb-2">
             Resolved Grievances
           </span>
           <div className="text-2xl font-black text-emerald-600">{totals.RESOLVED}</div>
-          <div className="text-[11px] text-emerald-700 mt-1">Proof uploaded</div>
+          <div className="text-[11px] text-emerald-700 mt-1">Citizen confirmed resolution</div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-rose-200 bg-rose-50/30 shadow-xs col-span-2 lg:col-span-1">
+        <div className="p-5 rounded-2xl border border-amber-200 bg-amber-50/70 shadow-xs">
+          <span className="text-xs font-bold uppercase tracking-wider text-amber-700 block mb-2">
+            Resolution Review
+          </span>
+          <div className="text-2xl font-black text-amber-700">{totals.RESOLUTION_PENDING_REVIEW}</div>
+          <div className="text-[11px] text-amber-800 mt-1">
+            {totals.AWAITING_CITIZEN} awaiting citizen verification
+          </div>
+        </div>
+
+        <div className="p-5 rounded-2xl border border-rose-200 bg-rose-50/70 shadow-xs col-span-2 lg:col-span-1">
           <span className="text-xs font-bold uppercase tracking-wider text-rose-600 block mb-2">
             SLA Overdue
           </span>
@@ -288,7 +360,7 @@ export const AdminPortal = ({ user, initialTab = 'triage' }) => {
           <div className="text-[11px] text-rose-700 mt-1">Breached target deadline</div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-amber-200 bg-amber-50/30 shadow-xs col-span-2 lg:col-span-1">
+        <div className="p-5 rounded-2xl border border-amber-200 bg-amber-50/70 shadow-xs col-span-2 lg:col-span-1">
           <span className="text-xs font-bold uppercase tracking-wider text-amber-700 block mb-2">
             Reopened
           </span>
@@ -304,7 +376,9 @@ export const AdminPortal = ({ user, initialTab = 'triage' }) => {
             <div className="mt-4 space-y-3">
               {[
                 ['Pending', totals.PENDING, 'bg-amber-500'],
-                ['Assigned', totals.ASSIGNED, 'bg-blue-600'],
+                ['Assigned / in progress / revision', totals.ASSIGNED + totals.IN_PROGRESS + totals.RESOLUTION_REJECTED, 'bg-teal-700'],
+                ['Admin review', totals.RESOLUTION_PENDING_REVIEW, 'bg-amber-500'],
+                ['Citizen verification', totals.AWAITING_CITIZEN, 'bg-blue-600'],
                 ['Resolved', totals.RESOLVED, 'bg-emerald-500'],
               ].map(([label, count, color]) => (
                 <div key={label}>
@@ -348,7 +422,7 @@ export const AdminPortal = ({ user, initialTab = 'triage' }) => {
           onClick={() => setActiveTab('triage')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
             activeTab === 'triage'
-              ? 'bg-blue-600 text-white shadow-xs'
+              ? 'bg-blue-700 text-white shadow-xs'
               : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
@@ -358,7 +432,7 @@ export const AdminPortal = ({ user, initialTab = 'triage' }) => {
           onClick={() => setActiveTab('map')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
             activeTab === 'map'
-              ? 'bg-blue-600 text-white shadow-xs'
+              ? 'bg-blue-700 text-white shadow-xs'
               : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
@@ -369,7 +443,7 @@ export const AdminPortal = ({ user, initialTab = 'triage' }) => {
           onClick={() => setActiveTab('workload')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
             activeTab === 'workload'
-              ? 'bg-blue-600 text-white shadow-xs'
+              ? 'bg-blue-700 text-white shadow-xs'
               : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
@@ -380,7 +454,7 @@ export const AdminPortal = ({ user, initialTab = 'triage' }) => {
           onClick={() => setActiveTab('analytics')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
             activeTab === 'analytics'
-              ? 'bg-blue-600 text-white shadow-xs'
+              ? 'bg-blue-700 text-white shadow-xs'
               : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
@@ -391,7 +465,7 @@ export const AdminPortal = ({ user, initialTab = 'triage' }) => {
           onClick={() => setActiveTab('users')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
             activeTab === 'users'
-              ? 'bg-blue-600 text-white shadow-xs'
+              ? 'bg-blue-700 text-white shadow-xs'
               : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
@@ -402,7 +476,7 @@ export const AdminPortal = ({ user, initialTab = 'triage' }) => {
           onClick={() => setActiveTab('officerApplications')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
             activeTab === 'officerApplications'
-              ? 'bg-blue-600 text-white shadow-xs'
+              ? 'bg-blue-700 text-white shadow-xs'
               : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
@@ -413,7 +487,7 @@ export const AdminPortal = ({ user, initialTab = 'triage' }) => {
           onClick={() => setActiveTab('audit')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
             activeTab === 'audit'
-              ? 'bg-blue-600 text-white shadow-xs'
+              ? 'bg-blue-700 text-white shadow-xs'
               : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
@@ -433,13 +507,13 @@ export const AdminPortal = ({ user, initialTab = 'triage' }) => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search complaints, streets, IDs..."
-                className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-300 focus:ring-2 focus:ring-purple-500 focus:outline-hidden"
+                className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-700 focus:outline-hidden"
               />
             </div>
 
             <div className="flex items-center gap-2 w-full md:w-auto flex-wrap">
               <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs">
-                {['ALL', 'PENDING', 'ASSIGNED', 'RESOLVED'].map((s) => (
+                {['ALL', 'PENDING', 'ACTIVE', 'IN_PROGRESS', 'RESOLUTION_PENDING_REVIEW', 'AWAITING_CITIZEN', 'RESOLVED'].map((s) => (
                   <button
                     key={s}
                     onClick={() => setStatusFilter(s)}
@@ -449,7 +523,7 @@ export const AdminPortal = ({ user, initialTab = 'triage' }) => {
                         : 'text-slate-500 hover:text-slate-900'
                     }`}
                   >
-                    {s}
+                    {s === 'ACTIVE' ? 'ASSIGNED / IN PROGRESS / REVISION' : s.replaceAll('_', ' ')}
                   </button>
                 ))}
               </div>
@@ -492,7 +566,10 @@ export const AdminPortal = ({ user, initialTab = 'triage' }) => {
                     </tr>
                   ) : (
                     filteredComplaints.map((c) => {
-                      const isOverdue = c.status === 'ASSIGNED' && c.deadline && c.deadline < today;
+                      const isOverdue =
+                        ['ASSIGNED', 'RESOLUTION_REJECTED'].includes(c.status) &&
+                        c.deadline &&
+                        c.deadline < today;
 
                       return (
                         <tr key={c.complaint_id} className="hover:bg-slate-50/70 transition">
@@ -501,7 +578,7 @@ export const AdminPortal = ({ user, initialTab = 'triage' }) => {
                           </td>
                           <td className="p-4 max-w-xs">
                             <div className="font-bold text-slate-900 line-clamp-1">{c.title}</div>
-                            <div className="text-[11px] text-blue-600 font-medium">{c.category}</div>
+                            <div className="text-[11px] text-blue-700 font-medium">{c.category}</div>
                             <div className="text-[11px] text-slate-400 truncate flex items-center gap-1 mt-0.5">
                               <MapPin className="w-3 h-3 text-rose-500 shrink-0" />
                               {c.location}
@@ -509,7 +586,7 @@ export const AdminPortal = ({ user, initialTab = 'triage' }) => {
                             {c.resolution_cycle > 1 && (
                               <span className="inline-flex items-center gap-1 text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded mt-1 font-semibold">
                                 <RotateCcw className="w-3 h-3" />
-                                Reopened (Cycle #{c.resolution_cycle})
+                                Returned for follow-up (Cycle #{c.resolution_cycle})
                               </span>
                             )}
                           </td>
@@ -523,7 +600,9 @@ export const AdminPortal = ({ user, initialTab = 'triage' }) => {
                                 className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${
                                   c.status === 'RESOLVED'
                                     ? 'bg-emerald-100 text-emerald-800'
-                                    : c.status === 'ASSIGNED'
+                                    : ['ASSIGNED', 'RESOLUTION_REJECTED'].includes(c.status)
+                                    ? 'bg-teal-100 text-teal-800'
+                                    : c.status === 'AWAITING_CITIZEN'
                                     ? 'bg-blue-100 text-blue-800'
                                     : 'bg-amber-100 text-amber-800'
                                 }`}
@@ -554,7 +633,12 @@ export const AdminPortal = ({ user, initialTab = 'triage' }) => {
                                 </div>
                               </div>
                             ) : (
-                              <span className="text-[11px] italic text-slate-400">Unassigned</span>
+                              <span
+                                className="text-[11px] italic text-slate-400"
+                                title="No eligible active, verified officer was available at submission time."
+                              >
+                                Unassigned · pending admin triage
+                              </span>
                             )}
                           </td>
                           <td className="p-4">
@@ -576,13 +660,13 @@ export const AdminPortal = ({ user, initialTab = 'triage' }) => {
                               onClick={() => navigate(`/admin/grievances/${c.complaint_id}`)}
                               className="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition cursor-pointer"
                             >
-                              Timeline
+                              {c.status === 'RESOLUTION_PENDING_REVIEW' ? 'Review proof' : 'Timeline'}
                             </button>
 
-                            {c.status !== 'RESOLVED' && (
+                            {['PENDING', 'ASSIGNED', 'RESOLUTION_REJECTED'].includes(c.status) && (
                               <button
                                 onClick={() => setSelectedForAssign(c)}
-                                className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-white bg-purple-600 hover:bg-purple-700 transition cursor-pointer"
+                                className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-white bg-blue-700 hover:bg-blue-800 transition cursor-pointer"
                               >
                                 {c.officer_id ? 'Reassign' : 'Assign'}
                               </button>
@@ -611,7 +695,7 @@ export const AdminPortal = ({ user, initialTab = 'triage' }) => {
                 Interactive territory pins within current coordinates. Click any pin to inspect or assign.
               </p>
             </div>
-            <span className="text-xs font-mono font-semibold text-purple-700 bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-200">
+            <span className="text-xs font-mono font-semibold text-teal-800 bg-teal-50 px-2.5 py-1 rounded-lg border border-teal-200">
               {complaints.length} Active Pins Bound
             </span>
           </div>
@@ -658,7 +742,7 @@ export const AdminPortal = ({ user, initialTab = 'triage' }) => {
                       <td className="p-3 font-bold text-slate-900">{w.name}</td>
                       <td className="p-3 text-slate-600">{w.department_name}</td>
                       <td className="p-3">
-                        <span className="font-bold text-blue-600 px-2 py-0.5 rounded bg-blue-50">
+                        <span className="font-bold text-blue-700 px-2 py-0.5 rounded bg-blue-50">
                           {w.active_cases}
                         </span>
                       </td>
@@ -692,7 +776,7 @@ export const AdminPortal = ({ user, initialTab = 'triage' }) => {
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="p-2 rounded-xl bg-purple-100 text-purple-700">
+                <div className="p-2 rounded-xl bg-teal-100 text-teal-800">
                   <Activity className="w-5 h-5" />
                 </div>
                 <div>
@@ -879,7 +963,7 @@ export const AdminPortal = ({ user, initialTab = 'triage' }) => {
                               );
                               if (updated) setPendingOfficerAssignment(null);
                             }}
-                            className="rounded-lg bg-blue-600 px-2 py-1.5 text-[10px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                            className="rounded-lg bg-blue-700 px-2 py-1.5 text-[10px] font-bold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             Assign officer role
                           </button>
@@ -1113,7 +1197,7 @@ export const AdminPortal = ({ user, initialTab = 'triage' }) => {
               <div key={log.audit_id} className="py-3 flex items-start justify-between gap-4">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-purple-700">{log.action}</span>
+                    <span className="font-bold text-teal-800">{log.action}</span>
                     <span className="text-slate-400 text-[10px]">[{log.entity_type}]</span>
                   </div>
                   <div className="text-slate-600 text-[11px] mt-0.5">
@@ -1154,12 +1238,19 @@ export const AdminPortal = ({ user, initialTab = 'triage' }) => {
           complaint={selectedForTimeline}
           history={store.getStatusHistory(selectedForTimeline.complaint_id)}
           feedbacks={store.getFeedback(selectedForTimeline.complaint_id)}
+          verifications={store.getResolutionVerifications?.(selectedForTimeline.complaint_id) || []}
+          onReviewResolution={
+            selectedForTimeline.status === 'RESOLUTION_PENDING_REVIEW'
+              ? handleReviewResolution
+              : undefined
+          }
+          isReviewingResolution={reviewSubmitting}
           onClose={() => {
             setSelectedForTimeline(null);
             if (complaintId) navigate('/admin/grievances');
           }}
           onAssign={
-            selectedForTimeline.status !== 'RESOLVED'
+            ['PENDING', 'ASSIGNED', 'RESOLUTION_REJECTED'].includes(selectedForTimeline.status)
               ? () => {
                   setSelectedForAssign(selectedForTimeline);
                   setSelectedForTimeline(null);

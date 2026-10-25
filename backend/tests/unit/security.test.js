@@ -5,6 +5,8 @@ const jwt = require('jsonwebtoken');
 const config = require('../../src/config/env');
 const userRepository = require('../../src/repositories/userRepository');
 const complaintRepository = require('../../src/repositories/complaintRepository');
+const feedbackRepository = require('../../src/repositories/feedbackRepository');
+const resolutionVerificationRepository = require('../../src/repositories/resolutionVerificationRepository');
 const { authenticate } = require('../../src/middleware/auth');
 const upload = require('../../src/middleware/upload');
 const complaintController = require('../../src/controllers/complaintController');
@@ -89,6 +91,71 @@ describe('Evidence file security', () => {
       }),
       expect.any(Function)
     );
+  });
+
+  test('citizens cannot fetch resolution evidence before administrator approval', async () => {
+    jest.spyOn(complaintRepository, 'findById').mockResolvedValue({
+      complaint_id: 5,
+      user_id: 8,
+      officer_id: 12,
+      status: 'RESOLUTION_PENDING_REVIEW',
+      resolved_image: '/uploads/after.jpg',
+    });
+    const res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn().mockReturnThis(),
+      sendFile: jest.fn(),
+      headersSent: false,
+    };
+
+    await complaintController.getEvidence(
+      { params: { complaintId: '5', type: 'AFTER' }, user: { user_id: 8, role: 'CITIZEN' } },
+      res,
+      jest.fn()
+    );
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.sendFile).not.toHaveBeenCalled();
+  });
+
+  test('citizen detail and timeline responses hide unapproved notes, paths, and review reasons', async () => {
+    jest.spyOn(complaintRepository, 'findById').mockResolvedValue({
+      complaint_id: 5,
+      user_id: 8,
+      officer_id: 12,
+      status: 'RESOLUTION_PENDING_REVIEW',
+      resolved_image: '/uploads/private-after.jpg',
+      resolved_notes: 'Private unapproved work notes.',
+      resolved_by: 12,
+      resolved_by_name: 'Officer',
+      resolved_at: '2026-06-01 12:00:00',
+    });
+    jest.spyOn(complaintRepository, 'getAttachments').mockResolvedValue([
+      { attachment_type: 'BEFORE', file_path: '/uploads/before.jpg' },
+      { attachment_type: 'AFTER', file_path: '/uploads/private-after.jpg' },
+    ]);
+    jest.spyOn(feedbackRepository, 'findByComplaintId').mockResolvedValue([]);
+    jest.spyOn(resolutionVerificationRepository, 'findByComplaintId').mockResolvedValue([]);
+    jest.spyOn(complaintRepository, 'getStatusHistory').mockResolvedValue([
+      { new_status: 'ASSIGNED', reason: 'Assigned to officer.' },
+      { new_status: 'RESOLUTION_PENDING_REVIEW', reason: 'Private unapproved work notes.' },
+    ]);
+    const res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn().mockReturnThis(),
+    };
+    const req = { params: { complaintId: '5' }, user: { user_id: 8, role: 'CITIZEN' } };
+
+    await complaintController.getComplaintById(req, res, jest.fn());
+    const detail = res.json.mock.calls[0][0].data;
+    expect(detail.resolved_image).toBeNull();
+    expect(detail.resolved_notes).toBeNull();
+    expect(detail.attachments).toEqual([{ attachment_type: 'BEFORE', file_path: '/uploads/before.jpg' }]);
+
+    await complaintController.getComplaintHistory(req, res, jest.fn());
+    expect(res.json.mock.calls[1][0].data).toEqual([
+      { new_status: 'ASSIGNED', reason: 'Assigned to officer.' },
+    ]);
   });
 
   test('legacy public uploads path no longer serves evidence', async () => {

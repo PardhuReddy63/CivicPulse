@@ -25,12 +25,16 @@ def test_compute_trends_with_reopening():
 def test_compute_workload():
     complaints = [
         ComplaintItem(category="Sanitation", status="ASSIGNED", deadline="2020-01-01"),
+        ComplaintItem(category="Sanitation", status="IN_PROGRESS", deadline="2020-01-01"),
         ComplaintItem(category="Sanitation", status="ASSIGNED", deadline="2099-01-01"),
+        ComplaintItem(category="Water", status="RESOLUTION_PENDING_REVIEW", deadline="2020-01-01"),
+        ComplaintItem(category="Roads", status="AWAITING_CITIZEN", deadline="2020-01-01"),
+        ComplaintItem(category="Roads", status="RESOLUTION_REJECTED", deadline="2020-01-01"),
         ComplaintItem(category="Roads", status="RESOLVED", deadline="2020-01-01"),
     ]
     res = AnalyticsService.compute_workload(complaints)
-    assert res.total_assigned_complaints == 2
-    assert res.overdue_complaints == 1
+    assert res.total_assigned_complaints == 6
+    assert res.overdue_complaints == 3
 
 def test_analytics_rejects_missing_internal_token(monkeypatch):
     monkeypatch.setattr(settings, "PYTHON_SERVICE_TOKEN", "")

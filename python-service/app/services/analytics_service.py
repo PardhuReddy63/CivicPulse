@@ -50,13 +50,24 @@ class AnalyticsService:
 
     @staticmethod
     def compute_workload(complaints: List[ComplaintItem]) -> WorkloadAnalysisResult:
-        assigned = [c for c in complaints if c.status == 'ASSIGNED']
+        active_statuses = {
+            'ASSIGNED',
+            'IN_PROGRESS',
+            'RESOLUTION_REJECTED',
+            'RESOLUTION_PENDING_REVIEW',
+            'AWAITING_CITIZEN',
+        }
+        assigned = [c for c in complaints if c.status in active_statuses]
+        actionable = [
+            c for c in assigned
+            if c.status in {'ASSIGNED', 'IN_PROGRESS', 'RESOLUTION_REJECTED'}
+        ]
         total_assigned = len(assigned)
 
         overdue_count = 0
         from datetime import datetime, date
         today = date.today().isoformat()
-        for c in assigned:
+        for c in actionable:
             if c.deadline and c.deadline < today:
                 overdue_count += 1
 
@@ -69,7 +80,7 @@ class AnalyticsService:
             for cat, count in cat_counts.most_common(5)
         ]
 
-        summary = f"{total_assigned} active cases under investigation, with {overdue_count} exceeding targeted SLA deadlines."
+        summary = f"{total_assigned} open assigned cases, with {overdue_count} actionable cases exceeding targeted SLA deadlines."
 
         return WorkloadAnalysisResult(
             total_assigned_complaints=total_assigned,

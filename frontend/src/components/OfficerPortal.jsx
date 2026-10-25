@@ -13,6 +13,7 @@ import {
   MapPin,
   Camera,
   Eye,
+  Play,
   RotateCcw,
   Star,
 } from 'lucide-react';
@@ -21,8 +22,11 @@ export const OfficerPortal = ({ user }) => {
   const navigate = useNavigate();
   const { complaintId } = useParams();
   const [searchParams] = useSearchParams();
+  const isAssignedToCurrentOfficer = (complaint) => (
+    Number(complaint.officer_id) === Number(user.user_id)
+  );
   const [complaints, setComplaints] = useState(() =>
-    store.getComplaints().filter((c) => c.officer_id === user.user_id)
+    store.getComplaints().filter(isAssignedToCurrentOfficer)
   );
   const [selectedForResolve, setSelectedForResolve] = useState(null);
   const [selectedForTimeline, setSelectedForTimeline] = useState(null);
@@ -31,11 +35,11 @@ export const OfficerPortal = ({ user }) => {
 
   React.useEffect(() => {
     const requestedFilter = searchParams.get('filter');
-    setFilter(['ALL', 'ASSIGNED', 'RESOLVED', 'OVERDUE'].includes(requestedFilter) ? requestedFilter : 'ASSIGNED');
+    setFilter(['ALL', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'OVERDUE'].includes(requestedFilter) ? requestedFilter : 'ASSIGNED');
   }, [searchParams]);
 
   const refreshComplaints = () => {
-    setComplaints(store.getComplaints().filter((c) => c.officer_id === user.user_id));
+    setComplaints(store.getComplaints().filter(isAssignedToCurrentOfficer));
   };
 
   React.useEffect(() => {
@@ -44,6 +48,29 @@ export const OfficerPortal = ({ user }) => {
       refreshComplaints();
     });
     return unsub;
+  }, [user.user_id]);
+
+  React.useEffect(() => {
+    let active = true;
+    const refreshFromApi = async () => {
+      try {
+        await store.refreshComplaints();
+      } catch (error) {
+        if (active) showToast(error.message || 'Assigned grievances could not be refreshed.');
+      }
+    };
+
+    const refreshWhenFocused = () => {
+      refreshFromApi();
+    };
+    const intervalId = window.setInterval(refreshFromApi, 5000);
+    window.addEventListener('focus', refreshWhenFocused);
+
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', refreshWhenFocused);
+    };
   }, [user.user_id]);
 
   React.useEffect(() => {
@@ -79,15 +106,20 @@ export const OfficerPortal = ({ user }) => {
 
   const today = new Date().toISOString().split('T')[0];
   const overdueCount = complaints.filter(
-    (c) => c.status === 'ASSIGNED' && c.deadline && c.deadline < today
+    (c) => ['ASSIGNED', 'IN_PROGRESS', 'RESOLUTION_REJECTED'].includes(c.status) && c.deadline && c.deadline < today
   ).length;
   const upcomingDeadlineCount = complaints.filter(
-    (c) => c.status === 'ASSIGNED' && c.deadline && c.deadline >= today
+    (c) => ['ASSIGNED', 'IN_PROGRESS', 'RESOLUTION_REJECTED'].includes(c.status) && c.deadline && c.deadline >= today
   ).length;
 
   const filtered = complaints.filter((c) => {
     if (filter === 'ALL') return true;
-    if (filter === 'OVERDUE') return c.status === 'ASSIGNED' && c.deadline && c.deadline < today;
+    if (filter === 'OVERDUE') {
+      return ['ASSIGNED', 'IN_PROGRESS', 'RESOLUTION_REJECTED'].includes(c.status) && c.deadline && c.deadline < today;
+    }
+    if (filter === 'ASSIGNED') {
+      return ['ASSIGNED', 'IN_PROGRESS', 'RESOLUTION_REJECTED', 'RESOLUTION_PENDING_REVIEW', 'AWAITING_CITIZEN'].includes(c.status);
+    }
     return c.status === filter;
   });
 
@@ -97,6 +129,19 @@ export const OfficerPortal = ({ user }) => {
       showToast(`Officer priority updated to ${priority}`);
     } catch (e) {
       alert(e.message);
+    }
+  };
+
+  const handleStartWork = async (complaint) => {
+    try {
+      await store.startWork(complaint.complaint_id);
+      showToast(
+        complaint.status === 'RESOLUTION_REJECTED'
+          ? 'Revision work started.'
+          : 'Investigation started.'
+      );
+    } catch (error) {
+      showToast(error.message || 'Work could not be started.');
     }
   };
 
@@ -125,14 +170,14 @@ export const OfficerPortal = ({ user }) => {
       )}
 
       {/* Banner */}
-      <div className="bg-gradient-to-r from-blue-700 to-sky-600 rounded-3xl p-6 sm:p-8 text-white shadow-lg flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+      <div className="bg-gradient-to-r from-blue-800 via-blue-700 to-teal-700 rounded-3xl p-6 sm:p-8 text-white shadow-lg flex flex-col md:flex-row md:items-center md:justify-between gap-6">
         <div>
-          <div className="flex items-center gap-2 text-blue-300 text-xs font-bold uppercase tracking-wider mb-1">
-            <Briefcase className="w-4 h-4 text-blue-400" />
+          <div className="flex items-center gap-2 text-teal-100 text-xs font-bold uppercase tracking-wider mb-1">
+            <Briefcase className="w-4 h-4 text-teal-300" />
             Officer Portal{user.department_name ? ` · ${user.department_name}` : ''}
           </div>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight">{user.name}</h1>
-          <p className="text-sm text-slate-300 mt-1 max-w-xl">
+          <p className="text-sm text-blue-50 mt-1 max-w-xl">
             Review your assigned grievances, track deadlines, and submit resolution evidence.
           </p>
         </div>
@@ -149,7 +194,7 @@ export const OfficerPortal = ({ user }) => {
       </div>
 
       {/* Metric Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
           <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-2">
             Total Assigned
@@ -158,17 +203,17 @@ export const OfficerPortal = ({ user }) => {
           <div className="text-[11px] text-slate-400 mt-1">Dispatched to your ID</div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+        <div className="bg-teal-50/70 p-5 rounded-2xl border border-teal-200 shadow-xs">
           <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-2">
             Active Investigations
           </span>
-          <div className="text-2xl font-black text-blue-600">
-            {complaints.filter((c) => c.status === 'ASSIGNED').length}
+          <div className="text-2xl font-black text-teal-800">
+            {complaints.filter((c) => ['ASSIGNED', 'IN_PROGRESS', 'RESOLUTION_REJECTED'].includes(c.status)).length}
           </div>
-          <div className="text-[11px] text-slate-400 mt-1">Awaiting remediation proof</div>
+          <div className="text-[11px] text-slate-400 mt-1">Active work and requested revisions</div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+        <div className="bg-emerald-50/70 p-5 rounded-2xl border border-emerald-200 shadow-xs">
           <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-2">
             Resolved Cases
           </span>
@@ -178,7 +223,27 @@ export const OfficerPortal = ({ user }) => {
           <div className="text-[11px] text-slate-400 mt-1">Completion notes recorded</div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+        <div className="bg-amber-50/70 p-5 rounded-2xl border border-amber-200 shadow-xs">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-2">
+            Awaiting Admin Review
+          </span>
+          <div className="text-2xl font-black text-amber-700">
+            {complaints.filter((c) => c.status === 'RESOLUTION_PENDING_REVIEW').length}
+          </div>
+          <div className="text-[11px] text-slate-400 mt-1">Resolution evidence submitted</div>
+        </div>
+
+        <div className="bg-blue-50/70 p-5 rounded-2xl border border-blue-200 shadow-xs">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-2">
+            Awaiting Citizen
+          </span>
+          <div className="text-2xl font-black text-blue-700">
+            {complaints.filter((c) => c.status === 'AWAITING_CITIZEN').length}
+          </div>
+          <div className="text-[11px] text-slate-400 mt-1">Approved resolution evidence</div>
+        </div>
+
+        <div className="bg-amber-50/70 p-5 rounded-2xl border border-amber-200 shadow-xs">
           <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-2">
             Upcoming Deadlines
           </span>
@@ -191,7 +256,9 @@ export const OfficerPortal = ({ user }) => {
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-bold text-slate-900">My grievance locations</h2>
           <span className="text-xs text-slate-500">
-            {complaints.length ? 'Only cases assigned to your account are shown.' : 'No assigned locations yet.'}
+            {complaints.length
+              ? 'Only cases assigned to your account are shown.'
+              : 'New grievances are automatically assigned when an eligible officer is available.'}
           </span>
         </div>
         <GrievanceMap complaints={complaints} onSelectComplaint={handleOpenTimeline} />
@@ -200,7 +267,7 @@ export const OfficerPortal = ({ user }) => {
       {/* Filter Row */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs">
-          {['ASSIGNED', 'RESOLVED', 'ALL', 'OVERDUE'].map((st) => (
+          {['ASSIGNED', 'IN_PROGRESS', 'RESOLUTION_REJECTED', 'RESOLUTION_PENDING_REVIEW', 'AWAITING_CITIZEN', 'RESOLVED', 'ALL', 'OVERDUE'].map((st) => (
             <button
               key={st}
               onClick={() => setFilter(st)}
@@ -210,7 +277,21 @@ export const OfficerPortal = ({ user }) => {
                   : 'text-slate-500 hover:text-slate-900'
               }`}
             >
-              {st === 'ASSIGNED' ? 'In Progress' : st === 'RESOLVED' ? 'Resolved' : st === 'OVERDUE' ? 'Overdue' : 'All Grievances'}
+              {st === 'ASSIGNED'
+                ? 'Active / Review'
+                : st === 'IN_PROGRESS'
+                ? 'In Progress'
+                : st === 'RESOLUTION_REJECTED'
+                ? 'Needs Revision'
+                : st === 'RESOLUTION_PENDING_REVIEW'
+                ? 'Awaiting Admin Review'
+                : st === 'AWAITING_CITIZEN'
+                ? 'Awaiting Your Review'
+                : st === 'RESOLVED'
+                ? 'Resolved'
+                : st === 'OVERDUE'
+                ? 'Overdue'
+                : 'All Grievances'}
             </button>
           ))}
         </div>
@@ -224,12 +305,19 @@ export const OfficerPortal = ({ user }) => {
         <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
           <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto mb-3" />
           <h3 className="text-sm font-bold text-slate-800">No work orders in this view</h3>
-          <p className="text-xs text-slate-400 mt-1">All assigned tasks are up to date.</p>
+          <p className="text-xs text-slate-400 mt-1">
+            {complaints.length === 0
+              ? 'New grievances appear here automatically when an active, verified officer is eligible in your department. This dashboard refreshes every few seconds.'
+              : 'Try another status filter to view your other assigned grievances.'}
+          </p>
         </div>
       ) : (
         <div className="space-y-4">
           {filtered.map((c) => {
-            const isOverdue = c.status === 'ASSIGNED' && c.deadline && c.deadline < today;
+            const isOverdue =
+              ['ASSIGNED', 'IN_PROGRESS', 'RESOLUTION_REJECTED'].includes(c.status) &&
+              c.deadline &&
+              c.deadline < today;
 
             return (
               <div
@@ -244,14 +332,14 @@ export const OfficerPortal = ({ user }) => {
                       <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
                         #{c.complaint_id}
                       </span>
-                      <span className="text-xs font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700">
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-800">
                         {c.category}
                       </span>
                       <span
                         className={`text-xs font-bold px-2 py-0.5 rounded-full ${
                           c.status === 'RESOLVED'
                             ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-blue-100 text-blue-800'
+                            : 'bg-teal-100 text-teal-800'
                         }`}
                       >
                         {c.status}
@@ -271,6 +359,17 @@ export const OfficerPortal = ({ user }) => {
 
                     <h3 className="text-base font-bold text-slate-900">{c.title}</h3>
                     <p className="text-xs text-slate-600 line-clamp-2">{c.description}</p>
+                    {c.status === 'RESOLUTION_REJECTED' && c.resolution_rejection_reason && (
+                      <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                        <strong>Admin review feedback:</strong> {c.resolution_rejection_reason}
+                      </div>
+                    )}
+                    {c.status === 'ASSIGNED' && c.resolution_verification_feedback && (
+                      <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-900">
+                        <strong>Citizen reported the issue is not resolved:</strong>{' '}
+                        {c.resolution_verification_feedback}
+                      </div>
+                    )}
 
                     <div className="flex items-center gap-4 text-xs text-slate-500 pt-1 flex-wrap">
                       <span className="flex items-center gap-1">
@@ -318,6 +417,15 @@ export const OfficerPortal = ({ user }) => {
                     </div>
 
                     <div className="flex items-center gap-2 w-full sm:w-auto">
+                      {['ASSIGNED', 'RESOLUTION_REJECTED'].includes(c.status) && (
+                        <button
+                          onClick={() => handleStartWork(c)}
+                          className="px-3 py-2 rounded-xl text-xs font-semibold text-blue-800 bg-blue-50 hover:bg-blue-100 transition flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Play className="w-3.5 h-3.5" />
+                          {c.status === 'RESOLUTION_REJECTED' ? 'Start Revision' : 'Start Investigation'}
+                        </button>
+                      )}
                       <button
                         onClick={() => navigate(`/officer/grievances/${c.complaint_id}`)}
                         className="px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition flex items-center gap-1.5 cursor-pointer"
@@ -326,13 +434,13 @@ export const OfficerPortal = ({ user }) => {
                         Timeline
                       </button>
 
-                      {c.status === 'ASSIGNED' && (
+                      {['ASSIGNED', 'IN_PROGRESS', 'RESOLUTION_REJECTED'].includes(c.status) && (
                         <button
                           onClick={() => setSelectedForResolve(c)}
                           className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-xs transition flex items-center gap-1.5 cursor-pointer"
                         >
                           <Camera className="w-3.5 h-3.5" />
-                          Submit Proof & Resolve
+                          Submit Proof for Review
                         </button>
                       )}
                     </div>
@@ -364,12 +472,13 @@ export const OfficerPortal = ({ user }) => {
           complaint={selectedForTimeline}
           history={store.getStatusHistory(selectedForTimeline.complaint_id)}
           feedbacks={store.getFeedback(selectedForTimeline.complaint_id)}
+          verifications={store.getResolutionVerifications?.(selectedForTimeline.complaint_id) || []}
           onClose={() => {
             setSelectedForTimeline(null);
             if (complaintId) navigate('/officer/dashboard');
           }}
           onResolve={
-            selectedForTimeline.status === 'ASSIGNED'
+            ['ASSIGNED', 'IN_PROGRESS', 'RESOLUTION_REJECTED'].includes(selectedForTimeline.status)
               ? () => {
                   const complaint = selectedForTimeline;
                   setSelectedForTimeline(null);

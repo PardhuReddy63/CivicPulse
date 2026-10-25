@@ -1,15 +1,14 @@
 const db = require('../config/db');
 
-async function executeInsert(executor, client, sql, params) {
-  if (!client) return executor.query(sql, params);
-  const [result] = await executor.query(sql, params);
-  return result;
+async function executeInsert(executor, sql, params) {
+  const queryResult = await executor.query(sql, params);
+  return Array.isArray(queryResult) ? queryResult[0] : queryResult;
 }
 
 class FeedbackRepository {
   async create({ complaint_id, citizen_id, rating, feedback_text, resolution_cycle = 1 }, client = null) {
     const executor = client || db;
-    const result = await executeInsert(executor, client,
+    const result = await executeInsert(executor,
       `INSERT INTO complaint_feedback (complaint_id, citizen_id, rating, feedback_text, resolution_cycle, created_at)
        VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())`,
       [complaint_id, citizen_id, rating, feedback_text || null, resolution_cycle]
@@ -28,8 +27,8 @@ class FeedbackRepository {
     );
   }
 
-  async hasFeedbackForCycle(complaintId, resolutionCycle) {
-    const rows = await db.query(
+  async hasFeedbackForCycle(complaintId, resolutionCycle, client = db) {
+    const rows = await client.query(
       `SELECT feedback_id FROM complaint_feedback 
        WHERE complaint_id = ? AND resolution_cycle = ?`,
       [complaintId, resolutionCycle]

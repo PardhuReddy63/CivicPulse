@@ -27,12 +27,12 @@ export const Navbar = ({ currentUser, onLogout }) => {
           aria-label="CivicPulse Hub dashboard"
           className="flex min-w-0 items-center gap-3"
         >
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-sm font-black text-white shadow-md shadow-blue-600/20">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-700 text-sm font-black text-white shadow-md shadow-blue-700/20">
             CP
           </span>
           <span className="min-w-0">
             <span className="block truncate text-lg font-extrabold tracking-tight text-slate-900">
-              CivicPulse<span className="text-blue-600">Hub</span>
+              CivicPulse<span className="text-blue-700">Hub</span>
             </span>
             <span className="hidden truncate text-[11px] text-slate-500 sm:block">
               Municipal Grievance Management &amp; Redressal
@@ -41,7 +41,7 @@ export const Navbar = ({ currentUser, onLogout }) => {
         </Link>
         <div className="flex items-center gap-2 sm:gap-4">
           <div className="flex min-w-0 items-center gap-2 border-l border-slate-200 pl-3 sm:pl-4">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-700">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-teal-50 text-teal-800">
               {roleIcon}
             </span>
             <span className="min-w-0">
@@ -63,7 +63,7 @@ export const Navbar = ({ currentUser, onLogout }) => {
               aria-haspopup="menu"
               aria-label="Account menu"
               onClick={() => setMenuOpen((open) => !open)}
-              className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+              className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-teal-200 hover:bg-teal-50 hover:text-teal-800"
             >
               Account
             </button>
@@ -78,7 +78,7 @@ export const Navbar = ({ currentUser, onLogout }) => {
                     setPasswordNotice('');
                     setPasswordDialog(true);
                   }}
-                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700"
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-teal-50 hover:text-teal-800"
                 >
                   <KeyRound className="h-4 w-4" />
                   Change password
@@ -89,7 +89,7 @@ export const Navbar = ({ currentUser, onLogout }) => {
           <button
             type="button"
             onClick={onLogout}
-            className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+            className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-teal-200 hover:bg-teal-50 hover:text-teal-800"
           >
             <LogOut className="h-4 w-4" />
             <span className="hidden sm:inline">Sign out</span>
@@ -199,7 +199,7 @@ export const Navbar = ({ currentUser, onLogout }) => {
               <button
                 type="submit"
                 disabled={passwordBusy}
-                className="w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60"
+                className="w-full rounded-xl bg-blue-700 px-4 py-3 text-sm font-bold text-white hover:bg-blue-800 disabled:cursor-wait disabled:opacity-60"
               >
                 {passwordBusy ? 'Updating…' : 'Update password'}
               </button>

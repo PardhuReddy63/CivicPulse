@@ -173,6 +173,46 @@ describe('CivicPulse Hub routes', () => {
     await waitFor(() => expect(screen.getByTestId('current-path').textContent).toBe('/citizen/dashboard'));
   });
 
+  it('keeps the authenticated session when dashboard data fails to load after login', async () => {
+    session.store.loadUserData.mockRejectedValueOnce(
+      new Error('Unable to load complaints.')
+    );
+
+    renderApp(['/login']);
+    await screen.findByRole('heading', { name: 'Sign in to your account' });
+    fireEvent.change(screen.getByLabelText('Username or email'), {
+      target: { value: 'citizen@example.test' },
+    });
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'a-secure-password' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+
+    expect(await screen.findByRole('heading', { name: 'Welcome, Test Citizen' })).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.getByTestId('current-path').textContent).toBe('/citizen/dashboard');
+    });
+    expect((await screen.findByRole('alert')).textContent).toContain('Unable to load complaints.');
+  });
+
+  it('keeps a restored session when dashboard data fails to load', async () => {
+    session.currentUser = {
+      user_id: 5,
+      name: 'Test Citizen',
+      email: 'citizen@example.test',
+      role: 'CITIZEN',
+    };
+    session.store.loadUserData.mockRejectedValueOnce(
+      new Error('Unable to load departments.')
+    );
+
+    renderApp(['/login']);
+
+    expect(await screen.findByRole('heading', { name: 'Welcome, Test Citizen' })).toBeTruthy();
+    expect((await screen.findByRole('alert')).textContent).toContain('Unable to load departments.');
+    expect(screen.getByTestId('current-path').textContent).toBe('/citizen/dashboard');
+  });
+
   it('refreshes a direct grievance-detail route into the matching complaint details', async () => {
     session.currentUser = {
       user_id: 5,

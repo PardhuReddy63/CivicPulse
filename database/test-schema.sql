@@ -75,7 +75,8 @@ CREATE TABLE `complaints` (
   `latitude` DECIMAL(10, 8) NULL,
   `longitude` DECIMAL(11, 8) NULL,
   `image` VARCHAR(500) NULL,
-  `status` VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+  `status` VARCHAR(40) NOT NULL DEFAULT 'PENDING'
+    COMMENT 'PENDING, ASSIGNED, IN_PROGRESS, RESOLUTION_REJECTED, RESOLUTION_PENDING_REVIEW, AWAITING_CITIZEN, RESOLVED',
   `priority` VARCHAR(20) NOT NULL DEFAULT 'MEDIUM',
   `officer_priority` VARCHAR(20) NULL,
   `user_id` BIGINT UNSIGNED NOT NULL,
@@ -124,12 +125,27 @@ CREATE TABLE `complaint_feedback` (
   CONSTRAINT `fk_test_fb_user` FOREIGN KEY (`citizen_id`) REFERENCES `users` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE `complaint_resolution_verifications` (
+  `verification_id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `complaint_id` BIGINT UNSIGNED NOT NULL,
+  `resolution_cycle` INT UNSIGNED NOT NULL,
+  `citizen_id` BIGINT UNSIGNED NOT NULL,
+  `decision` VARCHAR(20) NOT NULL,
+  `feedback_text` TEXT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`verification_id`),
+  UNIQUE KEY `uq_resolution_verification_cycle` (`complaint_id`, `resolution_cycle`),
+  CONSTRAINT `fk_test_verify_comp` FOREIGN KEY (`complaint_id`) REFERENCES `complaints` (`complaint_id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_test_verify_user` FOREIGN KEY (`citizen_id`) REFERENCES `users` (`user_id`),
+  CONSTRAINT `chk_test_verify_decision` CHECK (`decision` IN ('RESOLVED', 'NOT_RESOLVED'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE `complaint_status_history` (
   `history_id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `complaint_id` BIGINT UNSIGNED NOT NULL,
-  `changed_by` BIGINT UNSIGNED NOT NULL,
-  `old_status` VARCHAR(20) NULL,
-  `new_status` VARCHAR(20) NOT NULL,
+  `changed_by` BIGINT UNSIGNED NULL,
+  `old_status` VARCHAR(40) NULL,
+  `new_status` VARCHAR(40) NOT NULL,
   `reason` VARCHAR(500) NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`history_id`),

@@ -259,10 +259,30 @@ export class ApiClient {
     });
   }
 
+  static async reviewResolution(complaintId, payload) {
+    return this.request(`/complaints/${complaintId}/review-resolution`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  static async verifyResolution(complaintId, payload) {
+    return this.request(`/complaints/${complaintId}/verify-resolution`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
   static async updateOfficerPriority(complaintId, priority) {
     return this.request(`/complaints/${complaintId}/officer-priority`, {
       method: 'PUT',
       body: JSON.stringify({ officer_priority: priority }),
+    });
+  }
+
+  static async startWork(complaintId) {
+    return this.request(`/complaints/${complaintId}/start-work`, {
+      method: 'POST',
     });
   }
 
@@ -285,7 +305,7 @@ export class ApiClient {
 
     formData.append('resolved_notes', notes);
 
-    if (afterImage instanceof File) {
+    if (typeof Blob !== 'undefined' && afterImage instanceof Blob) {
       formData.append('after_image', afterImage);
     }
 

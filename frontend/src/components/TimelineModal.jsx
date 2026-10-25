@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ProtectedEvidenceImage } from './ProtectedEvidenceImage';
 import {
   X,
@@ -14,12 +14,22 @@ export const TimelineModal = ({
   complaint,
   history = [],
   feedbacks = [],
+  verifications = [],
   onClose,
   onOpenFeedback,
   onResolve,
   onAssign,
+  onReviewResolution,
+  isReviewingResolution = false,
+  canViewResolutionEvidence = true,
   canRate = false,
 }) => {
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [rejecting, setRejecting] = useState(false);
+  useEffect(() => {
+    setRejectionReason('');
+    setRejecting(false);
+  }, [complaint?.complaint_id, complaint?.resolution_cycle, complaint?.status]);
   if (!complaint) return null;
 
   return (
@@ -36,7 +46,7 @@ export const TimelineModal = ({
                 className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
                   complaint.status === 'RESOLVED'
                     ? 'bg-emerald-100 text-emerald-800'
-                    : complaint.status === 'ASSIGNED'
+                    : ['ASSIGNED', 'RESOLUTION_REJECTED'].includes(complaint.status)
                     ? 'bg-blue-100 text-blue-800'
                     : 'bg-amber-100 text-amber-800'
                 }`}
@@ -138,7 +148,11 @@ export const TimelineModal = ({
                   <span className="text-[10px] text-emerald-700">Submitted by Officer</span>
                 </div>
                 <div className="h-44 w-full flex items-center justify-center bg-slate-200">
-                  {complaint.resolved_image ? (
+                  {!canViewResolutionEvidence ? (
+                    <span className="px-4 text-center text-xs text-slate-500">
+                      Resolution evidence will be available after administrator approval.
+                    </span>
+                  ) : complaint.resolved_image ? (
                     <ProtectedEvidenceImage
                       complaintId={complaint.complaint_id}
                       type="AFTER"
@@ -158,7 +172,7 @@ export const TimelineModal = ({
           </div>
 
           {/* Officer Resolution Notes */}
-          {complaint.resolved_notes && (
+          {canViewResolutionEvidence && complaint.resolved_notes && (
             <div className="p-4 rounded-xl bg-emerald-50/70 border border-emerald-200">
               <div className="flex items-center gap-2 text-xs font-bold text-emerald-800 mb-1">
                 <CheckCircle className="w-4 h-4 text-emerald-600" />
@@ -173,6 +187,97 @@ export const TimelineModal = ({
                 </div>
               )}
             </div>
+          )}
+
+          {verifications.length > 0 && (
+            <section>
+              <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">
+                Citizen resolution verification
+              </h3>
+              <div className="space-y-2">
+                {verifications.map((verification) => (
+                  <div
+                    key={verification.verification_id}
+                    className={`rounded-xl border p-3 text-xs ${
+                      verification.decision === 'RESOLVED'
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-950'
+                        : 'border-amber-200 bg-amber-50 text-amber-950'
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <strong>{verification.decision === 'RESOLVED' ? 'Yes, resolved' : 'No, not resolved'}</strong>
+                      <span className="text-[10px] text-slate-500">
+                        Cycle #{verification.resolution_cycle} · {verification.citizen_name} · {verification.created_at}
+                      </span>
+                    </div>
+                    {verification.feedback_text && (
+                      <p className="mt-1">{verification.feedback_text}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {complaint.status === 'RESOLUTION_PENDING_REVIEW' && onReviewResolution && (
+            <section className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+              <h3 className="text-xs font-bold text-amber-900">Administrator resolution review</h3>
+              <p className="text-xs text-amber-800">
+                Approve this evidence to request citizen verification, or reject it with actionable feedback for the assigned officer.
+              </p>
+              {rejecting && (
+                <label className="block text-xs font-semibold text-slate-700">
+                  Rejection reason *
+                  <textarea
+                    value={rejectionReason}
+                    onChange={(event) => setRejectionReason(event.target.value)}
+                    maxLength={500}
+                    rows={3}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-3 text-xs"
+                    placeholder="Explain what additional work or evidence is required."
+                  />
+                </label>
+              )}
+              <div className="flex flex-wrap justify-end gap-2">
+                {rejecting ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setRejecting(false)}
+                      className="rounded-lg bg-white px-3 py-2 text-xs font-semibold text-slate-700"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isReviewingResolution || !rejectionReason.trim()}
+                      onClick={() => onReviewResolution('REJECT', rejectionReason.trim())}
+                      className="rounded-lg bg-rose-700 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
+                    >
+                      {isReviewingResolution ? 'Saving...' : 'Reject evidence'}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setRejecting(true)}
+                      className="rounded-lg border border-rose-300 bg-white px-3 py-2 text-xs font-bold text-rose-800"
+                    >
+                      Reject
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isReviewingResolution}
+                      onClick={() => onReviewResolution('APPROVE', '')}
+                      className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
+                    >
+                      {isReviewingResolution ? 'Saving...' : 'Approve for citizen verification'}
+                    </button>
+                  </>
+                )}
+              </div>
+            </section>
           )}
 
           {/* Feedback & Ratings Record */}

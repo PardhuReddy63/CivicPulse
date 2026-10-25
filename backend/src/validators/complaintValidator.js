@@ -60,6 +60,11 @@ const officerPriorityValidation = [
   validateResult,
 ];
 
+const startWorkValidation = [
+  param('complaintId').isInt({ min: 1 }).withMessage('Valid complaint ID is required'),
+  validateResult,
+];
+
 const resolveComplaintValidation = [
   param('complaintId').isInt({ min: 1 }).withMessage('Valid complaint ID is required'),
   body('resolved_notes').trim().notEmpty().withMessage('Resolution notes describing work completed are required').isLength({ min: 10 }),
@@ -79,12 +84,41 @@ const feedbackValidation = [
   validateResult,
 ];
 
+const reviewResolutionValidation = [
+  param('complaintId').isInt({ min: 1 }).withMessage('Valid complaint ID is required'),
+  body('decision').isIn(['APPROVE', 'REJECT']).withMessage('Decision must be APPROVE or REJECT'),
+  body('rejection_reason')
+    .if(body('decision').equals('REJECT'))
+    .trim()
+    .notEmpty()
+    .withMessage('A rejection reason is required.')
+    .isLength({ max: 500 })
+    .withMessage('Rejection reason must not exceed 500 characters.'),
+  validateResult,
+];
+
+const verifyResolutionValidation = [
+  param('complaintId').isInt({ min: 1 }).withMessage('Valid complaint ID is required'),
+  body('decision')
+    .isIn(['RESOLVED', 'NOT_RESOLVED'])
+    .withMessage('Decision must be RESOLVED or NOT_RESOLVED'),
+  body('feedback_text')
+    .optional({ nullable: true })
+    .trim()
+    .isLength({ max: 1000 })
+    .withMessage('Verification feedback must not exceed 1000 characters.'),
+  validateResult,
+];
+
 module.exports = {
   createComplaintValidation,
   assignComplaintValidation,
   setPriorityValidation,
   setDeadlineValidation,
   officerPriorityValidation,
+  startWorkValidation,
   resolveComplaintValidation,
   feedbackValidation,
+  reviewResolutionValidation,
+  verifyResolutionValidation,
 };

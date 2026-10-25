@@ -50,15 +50,35 @@ export default function App() {
     const unsubscribe = store.subscribe(() => setCurrentUser(store.getCurrentUser()));
     store
       .restoreSession()
-      .then(async (user) => {
-        if (user) await store.loadUserData(user);
-      })
       .catch(() => {
         setCurrentUser(null);
       })
       .finally(() => setLoadingSession(false));
     return unsubscribe;
   }, []);
+
+  useEffect(() => {
+    if (!currentUser) {
+      setDataError('');
+      return undefined;
+    }
+
+    let active = true;
+    store
+      .loadUserData(currentUser)
+      .then(() => {
+        if (active) setDataError('');
+      })
+      .catch((error) => {
+        if (active) {
+          setDataError(error.message || 'Unable to load database records.');
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [currentUser]);
 
   useEffect(() => {
     document.title = currentUser

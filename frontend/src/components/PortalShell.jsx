@@ -67,7 +67,7 @@ export function PortalShell({ currentUser, onLogout, dataError, reloadData, chil
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#f4f8fd] text-slate-900">
+    <div className="relative min-h-screen overflow-hidden bg-slate-100 text-slate-900">
       <div
         aria-hidden="true"
         className="pointer-events-none fixed bottom-0 right-0 z-0 h-[42vh] w-[min(78vw,1100px)] bg-[url('/assets/portal-skyline-background.svg')] bg-contain bg-bottom-right bg-no-repeat opacity-35"
@@ -90,8 +90,8 @@ export function PortalShell({ currentUser, onLogout, dataError, reloadData, chil
 
                   return `flex shrink-0 items-center gap-3 rounded-xl px-3 py-2.5 text-xs font-semibold transition lg:w-full ${
                     selected
-                      ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-100'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-blue-700'
+                      ? 'bg-teal-50 text-teal-800 ring-1 ring-teal-200'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-teal-700'
                   }`;
                 }}
               >

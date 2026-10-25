@@ -39,8 +39,8 @@ class UserRepository {
     return rows[0] || null;
   }
 
-  async findDepartmentByName(name) {
-    const rows = await db.query(
+  async findDepartmentByName(name, client = db) {
+    const rows = await client.query(
       `SELECT department_id, name
        FROM departments
        WHERE name = ? AND active = 1`,
@@ -49,14 +49,14 @@ class UserRepository {
     return rows[0] || null;
   }
 
-  async findById(userId) {
-    const rows = await db.query(
+  async findById(userId, client = db, { forUpdate = false } = {}) {
+    const rows = await client.query(
       `SELECT u.user_id, u.name, u.email, u.password_hash, u.role,
               u.department_id, u.active, u.verified, u.created_at,
               u.updated_at, d.name AS department_name
        FROM users u
        LEFT JOIN departments d ON u.department_id = d.department_id
-       WHERE u.user_id = ?`,
+       WHERE u.user_id = ?${forUpdate ? ' FOR UPDATE' : ''}`,
       [userId]
     );
     return rows[0] || null;

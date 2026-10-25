@@ -10,8 +10,11 @@ const {
   setPriorityValidation,
   setDeadlineValidation,
   officerPriorityValidation,
+  startWorkValidation,
   resolveComplaintValidation,
   feedbackValidation,
+  reviewResolutionValidation,
+  verifyResolutionValidation,
 } = require('../validators/complaintValidator');
 
 // All complaint routes require valid authenticated session
@@ -77,6 +80,13 @@ router.put(
   complaintController.setOfficerPriority
 );
 
+router.post(
+  '/:complaintId/start-work',
+  requireRole(['OFFICER']),
+  startWorkValidation,
+  complaintController.startWork
+);
+
 // 11. Assigned officer resolves complaint
 router.post(
   '/:complaintId/resolve',
@@ -85,6 +95,20 @@ router.post(
   validateImageContents,
   resolveComplaintValidation,
   complaintController.resolveComplaint
+);
+
+router.post(
+  '/:complaintId/review-resolution',
+  requireRole(['ADMIN']),
+  reviewResolutionValidation,
+  complaintController.reviewResolution
+);
+
+router.post(
+  '/:complaintId/verify-resolution',
+  requireRole(['CITIZEN']),
+  verifyResolutionValidation,
+  complaintController.verifyResolution
 );
 
 // 12. Citizen owner submits feedback (auto-reopens if rating is 1 or 2)

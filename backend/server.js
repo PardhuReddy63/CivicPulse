@@ -2,6 +2,7 @@
 const app = require('./src/app');
 const config = require('./src/config/env');
 const db = require('./src/config/db');
+const complaintService = require('./src/services/complaintService');
 
 async function startServer() {
   try {
@@ -10,6 +11,22 @@ async function startServer() {
     // Verify database connectivity before accepting requests.
     await db.testConnection();
     console.log('✔ Connected to MySQL Database');
+
+    // Recover older pending grievances before accepting requests.
+    try {
+      const recovery = await complaintService.recoverPendingAssignments();
+
+      console.log(
+        `✔ Pending assignment recovery complete: ` +
+        `${recovery.assigned} assigned, ` +
+        `${recovery.processed} examined`
+      );
+    } catch (recoveryError) {
+      console.error(
+        '⚠ Pending assignment recovery failed:',
+        recoveryError.message
+      );
+    }
 
     const server = app.listen(config.PORT, () => {
       console.log('====================================================');
