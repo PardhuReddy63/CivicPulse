@@ -26,7 +26,7 @@ class ReportService {
 
   async getAdminRecent() {
     return await db.query(
-      `SELECT c.complaint_id, c.title, c.category, c.status, c.priority, c.created_at, 
+      `SELECT c.complaint_id, c.title, c.category, c.status, c.priority, c.created_at,
               u.name as citizen_name, o.name as officer_name
        FROM complaints c
        JOIN users u ON c.user_id = u.user_id
@@ -134,7 +134,7 @@ class ReportService {
 
   async generateExcelReport() {
     const complaints = await db.query(
-      `SELECT c.complaint_id, c.title, c.category, c.sub_category, c.location, 
+      `SELECT c.complaint_id, c.title, c.category, c.sub_category, c.location,
               c.status, c.priority, c.officer_priority, c.deadline,
               u.name as citizen_name, u.email as citizen_email,
               o.name as officer_name,
@@ -171,7 +171,7 @@ class ReportService {
 
     try {
       const endpoint = analysisType === 'workload' ? '/api/v1/analyze/workload' : '/api/v1/analyze/trends';
-      
+
       // Gather bounded non-sensitive data for Python service
       const rawComplaints = await db.query(
         `SELECT complaint_id, category, status, priority, created_at, deadline, resolved_at, resolution_cycle

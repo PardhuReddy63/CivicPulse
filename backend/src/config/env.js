@@ -25,10 +25,11 @@ const config = {
 
   DB: {
     host: process.env.DB_HOST || '',
-    port: parsePort(process.env.DB_PORT, 3306),
+    port: parsePort(process.env.DB_PORT, 5432),
     database: process.env.DB_NAME || '',
     user: process.env.DB_USER || '',
     password: process.env.DB_PASSWORD || '',
+    ssl: process.env.DB_SSL === 'true',
   },
 
   JWT_SECRET: process.env.JWT_SECRET || '',

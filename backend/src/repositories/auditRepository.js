@@ -32,7 +32,7 @@ class AuditRepository {
     const total = countRows[0].total;
 
     const logs = await db.query(
-      `SELECT a.audit_id, a.actor_user_id, a.action, a.entity_type, a.entity_id, 
+      `SELECT a.audit_id, a.actor_user_id, a.action, a.entity_type, a.entity_id,
               a.details_json, a.created_at, u.name as actor_name, u.role as actor_role
        FROM audit_logs a
        LEFT JOIN users u ON a.actor_user_id = u.user_id

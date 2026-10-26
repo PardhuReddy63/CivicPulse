@@ -9,7 +9,7 @@ class ComplaintRepository {
   async findById(complaintId, client = null, { forUpdate = false } = {}) {
     const executor = client || db;
     const rows = await executor.query(
-      `SELECT c.*, 
+      `SELECT c.*,
               u.name AS citizen_name, u.email AS citizen_email,
               o.name AS officer_name, o.email AS officer_email,
               r.name AS resolved_by_name,
@@ -114,8 +114,8 @@ class ComplaintRepository {
     const total = countRows[0].total;
 
     const complaints = await db.query(
-      `SELECT c.*, 
-              u.name AS citizen_name, 
+      `SELECT c.*,
+              u.name AS citizen_name,
               o.name AS officer_name,
               d.name AS officer_department_name,
               (SELECT rating FROM complaint_feedback f WHERE f.complaint_id = c.complaint_id ORDER BY f.created_at DESC LIMIT 1) AS citizen_rating,
@@ -156,7 +156,7 @@ class ComplaintRepository {
     const total = countRows[0].total;
 
     const complaints = await db.query(
-      `SELECT c.*, 
+      `SELECT c.*,
               o.name AS officer_name,
               (SELECT rating FROM complaint_feedback f
                WHERE f.complaint_id = c.complaint_id
@@ -200,7 +200,7 @@ class ComplaintRepository {
     const total = countRows[0].total;
 
     const complaints = await db.query(
-      `SELECT c.*, 
+      `SELECT c.*,
               u.name AS citizen_name,
              (SELECT h.reason
               FROM complaint_status_history h
@@ -228,7 +228,7 @@ class ComplaintRepository {
        FROM complaints c
        JOIN users u ON c.user_id = u.user_id
        WHERE ${whereClause}
-       ORDER BY 
+       ORDER BY
          CASE WHEN c.officer_priority = 'HIGH' THEN 1
               WHEN c.priority = 'HIGH' THEN 2
               WHEN c.officer_priority = 'MEDIUM' THEN 3
@@ -252,7 +252,7 @@ class ComplaintRepository {
   async create(data, client = null) {
     const executor = client || db;
     const result = await executeInsert(executor,
-      `INSERT INTO complaints 
+      `INSERT INTO complaints
        (title, description, category, sub_category, location, latitude, longitude, image, status, priority, user_id, resolution_cycle, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, 1, UTC_TIMESTAMP(), UTC_TIMESTAMP())`,
       [

@@ -48,6 +48,34 @@ app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/reports', reportRoutes);
 app.use('/api/v1/officer-registrations', officerRegistrationRoutes);
 
+// Serve the production React frontend when the build exists.
+
+const path = require('path');
+
+const fs = require('fs');
+
+
+
+const frontendDist = path.resolve(__dirname, '../../frontend/dist');
+
+
+
+if (fs.existsSync(path.join(frontendDist, 'index.html'))) {
+
+  app.use(express.static(frontendDist));
+
+
+
+  app.get('*', (req, res, next) => {
+
+    if (req.path.startsWith('/api/') || req.path.startsWith('/uploads/')) return next();
+
+    res.sendFile(path.join(frontendDist, 'index.html'));
+
+  });
+
+}
+
 // 404 Catch-All
 app.use((req, res) => {
   res.status(404).json({
