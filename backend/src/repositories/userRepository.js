@@ -43,7 +43,7 @@ class UserRepository {
     const rows = await client.query(
       `SELECT department_id, name
        FROM departments
-       WHERE name = ? AND active = 1`,
+       WHERE name = ? AND active = TRUE`,
       [name]
     );
     return rows[0] || null;
@@ -80,7 +80,8 @@ class UserRepository {
       `INSERT INTO users
         (name, email, password_hash, role, department_id, active, verified,
          created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, 1, 0, UTC_TIMESTAMP(), UTC_TIMESTAMP())`,
+       VALUES (?, ?, ?, ?, ?, TRUE, FALSE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+       RETURNING user_id`,
       [name, email, password_hash, role, department_id]
     );
     return result.insertId;
@@ -89,7 +90,7 @@ class UserRepository {
   async markVerified(userId) {
     await db.query(
       `UPDATE users
-       SET verified = 1, updated_at = UTC_TIMESTAMP()
+       SET verified = TRUE, updated_at = CURRENT_TIMESTAMP
        WHERE user_id = ?`,
       [userId]
     );
@@ -98,7 +99,7 @@ class UserRepository {
   async updatePassword(userId, newPasswordHash) {
     await db.query(
       `UPDATE users
-       SET password_hash = ?, updated_at = UTC_TIMESTAMP()
+       SET password_hash = ?, updated_at = CURRENT_TIMESTAMP
        WHERE user_id = ?`,
       [newPasswordHash, userId]
     );
@@ -149,7 +150,7 @@ class UserRepository {
   async updateRoleAndDepartment(userId, role, departmentId = null) {
     await db.query(
       `UPDATE users
-       SET role = ?, department_id = ?, updated_at = UTC_TIMESTAMP()
+       SET role = ?, department_id = ?, updated_at = CURRENT_TIMESTAMP
        WHERE user_id = ?`,
       [role, departmentId, userId]
     );
@@ -158,9 +159,9 @@ class UserRepository {
   async setActiveStatus(userId, active) {
     await db.query(
       `UPDATE users
-       SET active = ?, updated_at = UTC_TIMESTAMP()
+       SET active = ?, updated_at = CURRENT_TIMESTAMP
        WHERE user_id = ?`,
-      [active ? 1 : 0, userId]
+      [Boolean(active), userId]
     );
   }
 
@@ -170,8 +171,8 @@ class UserRepository {
                FROM users u
                LEFT JOIN departments d ON u.department_id = d.department_id
                WHERE u.role = 'OFFICER'
-                 AND u.active = 1
-                 AND u.verified = 1`;
+                 AND u.active = TRUE
+                 AND u.verified = TRUE`;
 
     const params = [];
 
