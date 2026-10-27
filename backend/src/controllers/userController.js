@@ -91,7 +91,7 @@ class UserController {
           });
         }
         const departments = await db.query(
-          'SELECT department_id FROM departments WHERE department_id = ? AND active = 1',
+          'SELECT department_id FROM departments WHERE department_id = ? AND active = TRUE',
           [departmentId]
         );
         if (departments.length === 0) {
@@ -187,7 +187,7 @@ class UserController {
   async listDepartments(req, res, next) {
     try {
       const departments = await db.query(
-        `SELECT department_id, name, active FROM departments WHERE active = 1 ORDER BY name ASC`
+        `SELECT department_id, name, active FROM departments WHERE active = TRUE ORDER BY name ASC`
       );
       res.status(200).json({
         success: true,

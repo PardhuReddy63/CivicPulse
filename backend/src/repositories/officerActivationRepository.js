@@ -5,7 +5,7 @@ class OfficerActivationRepository {
   async invalidateUnusedTokens(requestId, client = db) {
     await client.query(
       `UPDATE officer_activation_tokens
-       SET used_at = UTC_TIMESTAMP()
+       SET used_at = CURRENT_TIMESTAMP
        WHERE request_id = ?
          AND used_at IS NULL`,
       [requestId]
@@ -16,7 +16,8 @@ class OfficerActivationRepository {
     const result = await client.query(
       `INSERT INTO officer_activation_tokens
          (request_id, token_hash, expires_at, used_at, created_at)
-       VALUES (?, ?, ?, NULL, UTC_TIMESTAMP())`,
+       VALUES (?, ?, ?, NULL, CURRENT_TIMESTAMP)
+       RETURNING activation_id`,
       [requestId, tokenHash, expiresAt]
     );
 
@@ -29,7 +30,7 @@ class OfficerActivationRepository {
        FROM officer_activation_tokens
        WHERE token_hash = ?
          AND used_at IS NULL
-         AND expires_at > UTC_TIMESTAMP()
+         AND expires_at > CURRENT_TIMESTAMP
        LIMIT 1`,
       [tokenHash]
     );
@@ -40,10 +41,10 @@ class OfficerActivationRepository {
   async markUsed(activationId, client = db) {
     const result = await client.query(
       `UPDATE officer_activation_tokens
-       SET used_at = UTC_TIMESTAMP()
+       SET used_at = CURRENT_TIMESTAMP
        WHERE activation_id = ?
          AND used_at IS NULL
-         AND expires_at > UTC_TIMESTAMP()`,
+         AND expires_at > CURRENT_TIMESTAMP`,
       [activationId]
     );
 

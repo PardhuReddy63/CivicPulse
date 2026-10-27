@@ -11,7 +11,8 @@ class ResolutionVerificationRepository {
     const result = await executeInsert(executor,
       `INSERT INTO complaint_resolution_verifications
         (complaint_id, resolution_cycle, citizen_id, decision, feedback_text, created_at)
-       VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())`,
+       VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+       RETURNING verification_id`,
       [complaint_id, resolution_cycle, citizen_id, decision, feedback_text || null]
     );
     return result.insertId;
