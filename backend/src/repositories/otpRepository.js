@@ -18,7 +18,7 @@ class OtpRepository {
 
   async findLatestValidOtp(userId) {
     const rows = await db.query(
-      `SELECT * FROM otp_verifications 
+      `SELECT * FROM otp_verifications
        WHERE user_id = ? AND used_at IS NULL AND expires_at > UTC_TIMESTAMP()
        ORDER BY created_at DESC LIMIT 1`,
       [userId]
@@ -56,7 +56,7 @@ class OtpRepository {
 
   async findValidPasswordResetToken(tokenHash) {
     const rows = await db.query(
-      `SELECT * FROM password_reset_tokens 
+      `SELECT * FROM password_reset_tokens
        WHERE token_hash = ? AND used_at IS NULL AND expires_at > UTC_TIMESTAMP()`,
       [tokenHash]
     );

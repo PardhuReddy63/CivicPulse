@@ -43,3 +43,21 @@ backend/uploads/
 
 # Local IDE settings
 .vscode/
+
+# Database exports and private migration data
+*.sql
+migration_backup/
+*.tar.gz
+
+# Local backup and recovery files
+*.bak
+*.corrupted
+*.malformed
+*.before-*
+
+# Local source backups
+*.backup
+*.pre-*
+
+# Internal project specification - keep local until approved for publication
+/public/assets/aistudio/

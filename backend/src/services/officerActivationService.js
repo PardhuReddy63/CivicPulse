@@ -1,4 +1,4 @@
-﻿
+
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const config = require('../config/env');

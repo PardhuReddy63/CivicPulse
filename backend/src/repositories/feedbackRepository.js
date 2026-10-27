@@ -29,7 +29,7 @@ class FeedbackRepository {
 
   async hasFeedbackForCycle(complaintId, resolutionCycle, client = db) {
     const rows = await client.query(
-      `SELECT feedback_id FROM complaint_feedback 
+      `SELECT feedback_id FROM complaint_feedback
        WHERE complaint_id = ? AND resolution_cycle = ?`,
       [complaintId, resolutionCycle]
     );
