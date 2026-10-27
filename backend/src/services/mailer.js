@@ -20,7 +20,13 @@ function getTransport() {
     host,
     port,
     secure: config.SMTP.secure,
-    auth: { user, pass: password },
+    auth: {
+      user,
+      pass: password,
+    },
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 20000,
   });
 }
 
