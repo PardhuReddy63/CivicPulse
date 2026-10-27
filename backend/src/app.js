@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const config = require('./config/env');
@@ -11,6 +11,9 @@ const reportRoutes = require('./routes/reportRoutes');
 const officerRegistrationRoutes = require('./routes/officerRegistrationRoutes');
 
 const app = express();
+
+// Trust the Render reverse proxy for client IP and rate limiting.
+app.set('trust proxy', 1);
 
 // Security Headers
 app.use(helmet({
@@ -91,3 +94,4 @@ app.use((req, res) => {
 app.use(errorHandler);
 
 module.exports = app;
+
