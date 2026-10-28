@@ -1,30 +1,5 @@
 const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
-const crypto = require('crypto');
-const config = require('../config/env');
-
-const uploadDir = path.resolve(config.UPLOAD_DIR);
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    // Generate secure randomized server-side filename; do not trust client name
-    const randomHex = crypto.randomBytes(16).toString('hex');
-    const extensionsByMimeType = {
-      'image/jpeg': '.jpg',
-      'image/png': '.png',
-      'image/webp': '.webp',
-    };
-    const ext = extensionsByMimeType[file.mimetype] || path.extname(file.originalname).toLowerCase();
-    cb(null, `evidence_${Date.now()}_${randomHex}${ext}`);
-  },
-});
+const storage = multer.memoryStorage();
 
 function fileFilter(req, file, cb) {
   const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
@@ -58,11 +33,11 @@ async function validateImageContents(req, res, next) {
   if (!req.file) return next();
 
   try {
-    const buffer = await fs.promises.readFile(req.file.path);
-    const matchesSignature = signaturesByMimeType[req.file.mimetype]?.(buffer);
+    const buffer = req.file.buffer;
+    const matchesSignature = Buffer.isBuffer(buffer) &&
+      signaturesByMimeType[req.file.mimetype]?.(buffer);
     if (matchesSignature) return next();
 
-    await fs.promises.unlink(req.file.path);
     const error = new Error('The uploaded file contents do not match a supported image format.');
     error.status = 415;
     error.code = 'INVALID_IMAGE_CONTENT';

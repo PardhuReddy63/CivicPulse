@@ -47,9 +47,11 @@ const config = {
   PYTHON_SERVICE_URL: process.env.PYTHON_SERVICE_URL || '',
   PYTHON_SERVICE_TOKEN: process.env.PYTHON_SERVICE_TOKEN || '',
 
-  UPLOAD_DIR:
-    process.env.UPLOAD_DIR ||
-    (process.env.VERCEL ? '/tmp/civicpulse-uploads' : './uploads'),
+  UPLOAD_DIR: process.env.UPLOAD_DIR || './uploads',
+  SUPABASE_URL: process.env.SUPABASE_URL || '',
+  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
+  SUPABASE_EVIDENCE_BUCKET:
+    process.env.SUPABASE_EVIDENCE_BUCKET || 'complaint-evidence',
 };
 
 config.validateEnvironment = () => {

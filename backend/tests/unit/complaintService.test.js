@@ -4,6 +4,7 @@ const feedbackRepository = require('../../src/repositories/feedbackRepository');
 const auditRepository = require('../../src/repositories/auditRepository');
 const userRepository = require('../../src/repositories/userRepository');
 const complaintService = require('../../src/services/complaintService');
+const evidenceStorage = require('../../src/services/evidenceStorage');
 
 afterEach(() => {
   jest.restoreAllMocks();
@@ -42,6 +43,10 @@ describe('Complaint service database workflows', () => {
   });
 
   test('creates a complaint with photo, attachment, and initial history in one transaction', async () => {
+    const storedEvidencePath =
+      'supabase://complaint-evidence/evidence/test-photo.jpg';
+    jest.spyOn(evidenceStorage, 'uploadEvidence')
+      .mockResolvedValue(storedEvidencePath);
     const transaction = {
       query: jest.fn()
         .mockResolvedValueOnce({ insertId: 31, affectedRows: 1 })
@@ -67,7 +72,7 @@ describe('Complaint service database workflows', () => {
       latitude: 12.345678,
       longitude: 77.123456,
       image_file: {
-        filename: 'evidence_school.jpg',
+        buffer: Buffer.from([0xff, 0xd8, 0xff]),
         mimetype: 'image/jpeg',
       },
       user: { user_id: 8, role: 'CITIZEN' },
@@ -80,6 +85,7 @@ describe('Complaint service database workflows', () => {
       expect.stringContaining('INSERT INTO complaint_status_history'),
       expect.stringContaining('INSERT INTO audit_logs'),
     ]));
+    expect(transaction.query.mock.calls[0][1]).toContain(storedEvidencePath);
     expect(result).toMatchObject({ complaint_id: 31, category: 'Education' });
   });
 
@@ -189,6 +195,28 @@ describe('Complaint service database workflows', () => {
       })
     ).rejects.toMatchObject({ code: 'FORBIDDEN', status: 403 });
     expect(transaction).not.toHaveBeenCalled();
+  });
+
+  test('removes uploaded evidence if the complaint transaction fails', async () => {
+    const storedPath = 'supabase://complaint-evidence/evidence/failed-create.jpg';
+    jest.spyOn(evidenceStorage, 'uploadEvidence').mockResolvedValue(storedPath);
+    const removeEvidence = jest.spyOn(evidenceStorage, 'deleteEvidence').mockResolvedValue();
+    jest.spyOn(db, 'withTransaction').mockImplementation((callback) => callback({}));
+    jest.spyOn(complaintRepository, 'create').mockResolvedValue(undefined);
+
+    await expect(complaintService.createComplaint({
+      title: 'Blocked storm drain',
+      description: 'Water cannot drain from the crossing.',
+      category: 'Water Works & Drainage',
+      location: 'Main crossing',
+      image_file: {
+        buffer: Buffer.from([0xff, 0xd8, 0xff]),
+        mimetype: 'image/jpeg',
+      },
+      user: { user_id: 8, role: 'CITIZEN' },
+    })).rejects.toMatchObject({ code: 'COMPLAINT_ID_UNAVAILABLE' });
+
+    expect(removeEvidence).toHaveBeenCalledWith(storedPath);
   });
 
   test('rejects assignment when the grievance category has no active department', async () => {
