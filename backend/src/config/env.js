@@ -47,7 +47,9 @@ const config = {
   PYTHON_SERVICE_URL: process.env.PYTHON_SERVICE_URL || '',
   PYTHON_SERVICE_TOKEN: process.env.PYTHON_SERVICE_TOKEN || '',
 
-  UPLOAD_DIR: process.env.UPLOAD_DIR || './uploads',
+  UPLOAD_DIR:
+    process.env.UPLOAD_DIR ||
+    (process.env.VERCEL ? '/tmp/civicpulse-uploads' : './uploads'),
 };
 
 config.validateEnvironment = () => {
