@@ -20,7 +20,13 @@ function getTransport() {
     host,
     port,
     secure: config.SMTP.secure,
-    auth: { user, pass: password },
+    auth: {
+      user,
+      pass: password,
+    },
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 20000,
   });
 }
 
@@ -32,12 +38,27 @@ function assertConfigured() {
 
 async function sendVerificationOtp(email, otp) {
   const transport = getTransport();
-  await transport.sendMail({
-    from: config.SMTP.from,
-    to: email,
-    subject: 'CivicPulse Hub email verification',
-    text: `Your CivicPulse Hub verification code is ${otp}. It expires in 15 minutes.`,
-  });
+
+  console.log('[MAIL] Starting verification email delivery');
+
+  try {
+    const result = await transport.sendMail({
+      from: config.SMTP.from,
+      to: email,
+      subject: 'CivicPulse Hub email verification',
+      text: `Your CivicPulse Hub verification code is ${otp}. It expires in 15 minutes.`,
+    });
+
+    console.log('[MAIL] Verification email accepted by SMTP server');
+    return result;
+  } catch (error) {
+    console.error('[MAIL] Verification email failed:', {
+      code: error.code,
+      command: error.command,
+      message: error.message,
+    });
+    throw error;
+  }
 }
 
 async function sendPasswordResetToken(email, token) {

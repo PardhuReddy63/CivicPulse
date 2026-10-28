@@ -10,7 +10,7 @@ async function startServer() {
 
     // Verify database connectivity before accepting requests.
     await db.testConnection();
-    console.log('✔ Connected to MySQL Database');
+    console.log('✔ Connected to PostgreSQL Database');
 
     // Recover older pending grievances before accepting requests.
     try {

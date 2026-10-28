@@ -46,8 +46,8 @@ class ComplaintRepository {
        FROM users
        WHERE department_id = ?
          AND role = 'OFFICER'
-         AND active = 1
-         AND verified = 1
+         AND active = TRUE
+         AND verified = TRUE
        ORDER BY user_id ASC
        FOR UPDATE`,
       [departmentId]
@@ -254,7 +254,8 @@ class ComplaintRepository {
     const result = await executeInsert(executor,
       `INSERT INTO complaints
        (title, description, category, sub_category, location, latitude, longitude, image, status, priority, user_id, resolution_cycle, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, 1, UTC_TIMESTAMP(), UTC_TIMESTAMP())`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+       RETURNING complaint_id`,
       [
         data.title,
         data.description,
@@ -274,8 +275,10 @@ class ComplaintRepository {
   async addAttachment(data, client = null) {
     const executor = client || db;
     const result = await executeInsert(executor,
-      `INSERT INTO complaint_attachments (complaint_id, attachment_type, file_path, mime_type, uploaded_by, created_at)
-       VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())`,
+      `INSERT INTO complaint_attachments
+       (complaint_id, attachment_type, file_path, mime_type, uploaded_by, created_at)
+       VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+       RETURNING attachment_id`,
       [data.complaint_id, data.attachment_type, data.file_path, data.mime_type, data.uploaded_by]
     );
     return result.insertId;
@@ -290,7 +293,7 @@ class ComplaintRepository {
 
   async assignOfficer(complaintId, { officer_id, priority, deadline }, client = null) {
     const executor = client || db;
-    const updates = ['status = "ASSIGNED"', 'officer_id = ?', 'updated_at = UTC_TIMESTAMP()'];
+    const updates = ["status = 'ASSIGNED'", 'officer_id = ?', 'updated_at = CURRENT_TIMESTAMP'];
     const params = [officer_id];
 
     if (priority) {
@@ -322,7 +325,7 @@ class ComplaintRepository {
   async updatePriority(complaintId, priority, client = null) {
     const executor = client || db;
     await executor.query(
-      `UPDATE complaints SET priority = ?, updated_at = UTC_TIMESTAMP() WHERE complaint_id = ?`,
+      `UPDATE complaints SET priority = ?, updated_at = CURRENT_TIMESTAMP WHERE complaint_id = ?`,
       [priority, complaintId]
     );
   }
@@ -330,7 +333,7 @@ class ComplaintRepository {
   async updateOfficerPriority(complaintId, officerPriority, client = null) {
     const executor = client || db;
     await executor.query(
-      `UPDATE complaints SET officer_priority = ?, updated_at = UTC_TIMESTAMP() WHERE complaint_id = ?`,
+      `UPDATE complaints SET officer_priority = ?, updated_at = CURRENT_TIMESTAMP WHERE complaint_id = ?`,
       [officerPriority, complaintId]
     );
   }
@@ -338,7 +341,7 @@ class ComplaintRepository {
   async updateDeadline(complaintId, deadline, client = null) {
     const executor = client || db;
     await executor.query(
-      `UPDATE complaints SET deadline = ?, updated_at = UTC_TIMESTAMP() WHERE complaint_id = ?`,
+      `UPDATE complaints SET deadline = ?, updated_at = CURRENT_TIMESTAMP WHERE complaint_id = ?`,
       [deadline, complaintId]
     );
   }
@@ -351,8 +354,8 @@ class ComplaintRepository {
            resolved_by = ?,
            resolved_notes = ?,
            resolved_image = ?,
-           resolved_at = UTC_TIMESTAMP(),
-           updated_at = UTC_TIMESTAMP()
+           resolved_at = CURRENT_TIMESTAMP,
+           updated_at = CURRENT_TIMESTAMP
        WHERE complaint_id = ?`,
       [resolved_by, resolved_notes, resolved_image || null, complaintId]
     );
@@ -362,7 +365,7 @@ class ComplaintRepository {
     const executor = client || db;
     await executor.query(
       `UPDATE complaints
-       SET status = ?, updated_at = UTC_TIMESTAMP()
+       SET status = ?, updated_at = CURRENT_TIMESTAMP
        WHERE complaint_id = ?`,
       [status, complaintId]
     );
@@ -373,7 +376,7 @@ class ComplaintRepository {
     await executor.query(
       `UPDATE complaints
        SET status = ?, resolution_cycle = resolution_cycle + ?,
-           updated_at = UTC_TIMESTAMP()
+           updated_at = CURRENT_TIMESTAMP
        WHERE complaint_id = ?`,
       [resolved ? 'RESOLVED' : 'ASSIGNED', resolved ? 0 : 1, complaintId]
     );
@@ -385,7 +388,7 @@ class ComplaintRepository {
       `UPDATE complaints
        SET status = 'ASSIGNED',
            resolution_cycle = resolution_cycle + 1,
-           updated_at = UTC_TIMESTAMP()
+           updated_at = CURRENT_TIMESTAMP
        WHERE complaint_id = ?`,
       [complaintId]
     );
@@ -394,8 +397,10 @@ class ComplaintRepository {
   async addStatusHistory(data, client = null) {
     const executor = client || db;
     const result = await executeInsert(executor,
-      `INSERT INTO complaint_status_history (complaint_id, changed_by, old_status, new_status, reason, created_at)
-       VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())`,
+      `INSERT INTO complaint_status_history
+       (complaint_id, changed_by, old_status, new_status, reason, created_at)
+       VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+       RETURNING history_id`,
       [data.complaint_id, data.changed_by, data.old_status, data.new_status, data.reason || null]
     );
     return result.insertId;

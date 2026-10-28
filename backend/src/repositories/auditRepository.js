@@ -6,7 +6,7 @@ class AuditRepository {
     const detailsStr = details_json ? JSON.stringify(details_json) : null;
     await executor.query(
       `INSERT INTO audit_logs (actor_user_id, action, entity_type, entity_id, details_json, created_at)
-       VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())`,
+       VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
       [actor_user_id, action, entity_type, entity_id, detailsStr]
     );
   }

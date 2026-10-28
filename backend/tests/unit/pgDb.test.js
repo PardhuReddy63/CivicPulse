@@ -178,9 +178,28 @@ describe('PostgreSQL adapter', () => {
 
 
     await expect(db.query('SELECT * FROM users')).resolves.toEqual(rows);
-
   });
 
+  test('returns insertId from PostgreSQL INSERT ... RETURNING results', async () => {
+    mockPool.query.mockResolvedValue({
+      command: 'INSERT',
+      rows: [{ user_id: 42 }],
+      rowCount: 1,
+    });
+
+    const result = await db.query(
+      'INSERT INTO users (name) VALUES (?) RETURNING user_id',
+      ['Test User'],
+    );
+
+    expect(mockPool.query).toHaveBeenCalledWith(
+      'INSERT INTO users (name) VALUES ($1) RETURNING user_id',
+      ['Test User'],
+    );
+
+    expect(result.insertId).toBe(42);
+    expect(result.affectedRows).toBe(1);
+  });
 
 
   test('returns affectedRows for UPDATE queries', async () => {

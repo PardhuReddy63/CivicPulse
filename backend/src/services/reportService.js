@@ -40,7 +40,7 @@ class ReportService {
     return await db.query(
       `SELECT DATE(created_at) as date, COUNT(*) as count
        FROM complaints
-       WHERE created_at >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 14 DAY)
+       WHERE created_at >= CURRENT_TIMESTAMP - INTERVAL '14 days'
        GROUP BY DATE(created_at)
        ORDER BY date ASC`
     );
@@ -68,7 +68,7 @@ class ReportService {
        FROM users u
        LEFT JOIN departments d ON u.department_id = d.department_id
        LEFT JOIN complaints c ON u.user_id = c.officer_id
-       WHERE u.role = 'OFFICER' AND u.active = 1
+       WHERE u.role = 'OFFICER' AND u.active = TRUE
        GROUP BY u.user_id, u.name, d.name
        ORDER BY active_cases DESC, u.name ASC`
     );
@@ -112,7 +112,7 @@ class ReportService {
     return await db.query(
       `SELECT DATE(created_at) as date, COUNT(*) as count
        FROM complaints
-       WHERE user_id = ? AND created_at >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 30 DAY)
+       WHERE user_id = ? AND created_at >= CURRENT_TIMESTAMP - INTERVAL '30 days'
        GROUP BY DATE(created_at)
        ORDER BY date ASC`,
       [userId]
@@ -176,7 +176,7 @@ class ReportService {
       const rawComplaints = await db.query(
         `SELECT complaint_id, category, status, priority, created_at, deadline, resolved_at, resolution_cycle
          FROM complaints
-         ${analysisType === 'trends' ? 'WHERE created_at >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 30 DAY)' : ''}`
+         ${analysisType === 'trends' ? "WHERE created_at >= CURRENT_TIMESTAMP - INTERVAL '30 days'" : ''}`
       );
 
       const response = await fetch(`${config.PYTHON_SERVICE_URL}${endpoint}`, {

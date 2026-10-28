@@ -38,7 +38,8 @@ class OfficerRegistrationRepository {
     const result = await db.query(
       `INSERT INTO officer_registration_requests
         (full_name, email, phone, department_id, designation, reason, status)
-       VALUES (?, ?, ?, ?, ?, ?, 'PENDING')`,
+       VALUES (?, ?, ?, ?, ?, ?, 'PENDING')
+       RETURNING request_id`,
       [
         full_name,
         email,
@@ -137,7 +138,7 @@ class OfficerRegistrationRepository {
         `UPDATE officer_registration_requests
          SET status = ?,
              reviewed_by = ?,
-             reviewed_at = UTC_TIMESTAMP(),
+             reviewed_at = CURRENT_TIMESTAMP,
              review_notes = ?
          WHERE request_id = ?
            AND status = 'PENDING'`,

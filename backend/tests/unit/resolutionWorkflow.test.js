@@ -27,7 +27,7 @@ describe('automatic assignment and resolution workflow', () => {
       expect.stringContaining('INSERT INTO complaint_resolution_verifications'),
       [88, 3, 9, 'NOT_RESOLVED', 'The water is still leaking.']
     );
-    expect(transaction.query.mock.calls[0][0]).toContain('UTC_TIMESTAMP()');
+    expect(transaction.query.mock.calls[0][0]).toContain('CURRENT_TIMESTAMP');
   });
 
   test.each([
@@ -145,8 +145,8 @@ describe('automatic assignment and resolution workflow', () => {
     await expect(
       complaintRepository.findLeastLoadedOfficerId(departmentId, client)
     ).resolves.toBe(expected);
-    expect(client.query.mock.calls[0][0]).toContain('active = 1');
-    expect(client.query.mock.calls[0][0]).toContain('verified = 1');
+    expect(client.query.mock.calls[0][0]).toContain('active = TRUE');
+    expect(client.query.mock.calls[0][0]).toContain('verified = TRUE');
     expect(client.query.mock.calls[0][0]).toMatch(/ORDER BY user_id ASC\s+FOR UPDATE/);
     expect(client.query.mock.calls[0][1]).toEqual([departmentId]);
     expect(client.query.mock.calls[1][0]).toContain('FOR UPDATE');

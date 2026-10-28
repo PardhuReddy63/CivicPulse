@@ -148,7 +148,7 @@ describe('Officer activation service', () => {
 
     expect(insertCall).toBeDefined();
     expect(insertCall[0]).toContain("'OFFICER'");
-    expect(insertCall[0]).toContain('1, 1');
+    expect(insertCall[0]).toContain('TRUE, TRUE');
     expect(insertCall[1][0]).toBe('Test Officer');
     expect(insertCall[1][1]).toBe('officer@example.test');
     expect(insertCall[1][3]).toBe(2);

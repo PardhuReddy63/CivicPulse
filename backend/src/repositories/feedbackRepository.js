@@ -10,7 +10,8 @@ class FeedbackRepository {
     const executor = client || db;
     const result = await executeInsert(executor,
       `INSERT INTO complaint_feedback (complaint_id, citizen_id, rating, feedback_text, resolution_cycle, created_at)
-       VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())`,
+       VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+       RETURNING feedback_id`,
       [complaint_id, citizen_id, rating, feedback_text || null, resolution_cycle]
     );
     return result.insertId;

@@ -88,7 +88,7 @@ class OfficerActivationService {
          FROM officer_activation_tokens
          WHERE token_hash = ?
            AND used_at IS NULL
-           AND expires_at > UTC_TIMESTAMP()
+           AND expires_at > CURRENT_TIMESTAMP
          LIMIT 1
          FOR UPDATE`,
         [tokenHash]
@@ -145,7 +145,8 @@ class OfficerActivationService {
         `INSERT INTO users
            (name, email, password_hash, role, department_id, active, verified,
             created_at, updated_at)
-         VALUES (?, ?, ?, 'OFFICER', ?, 1, 1, UTC_TIMESTAMP(), UTC_TIMESTAMP())`,
+           VALUES (?, ?, ?, 'OFFICER', ?, TRUE, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+           RETURNING user_id`,
         [
           application.full_name,
           application.email,

@@ -11,7 +11,7 @@ class OfficerRegistrationController {
       const departments = await db.query(
         `SELECT department_id, name
          FROM departments
-         WHERE active = 1
+         WHERE active = TRUE
          ORDER BY name ASC`
       );
 
@@ -37,7 +37,7 @@ class OfficerRegistrationController {
       const departments = await db.query(
         `SELECT department_id
          FROM departments
-         WHERE department_id = ? AND active = 1
+         WHERE department_id = ? AND active = TRUE
          LIMIT 1`,
         [departmentId]
       );
