@@ -56,3 +56,36 @@ npm test
 - **Audit**: Admin-only `/api/v1/users/audit`
 
 The Python analytics service is optional. Configure its internal token in both service `.env` files to enable it; an unavailable service does not stop core complaint operations.
+
+## Vercel deployment
+
+Set the Vercel project Root Directory to `backend` and Framework Preset to
+`Other`. The checked-in `vercel.json` builds `server.js` as a Node.js function
+and routes requests to the existing Express application. It runs `npm ci`
+from the backend directory using the checked-in lockfile. No build command
+or output directory is required.
+
+Configure these Vercel environment variables for the required services:
+
+- PostgreSQL: `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`,
+  `DB_SSL`
+- Authentication: `JWT_SECRET` (at least 32 characters); optionally
+  `JWT_EXPIRES_IN`
+- Frontend CORS: `FRONTEND_URL`
+- Email: `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`,
+  `SMTP_PASSWORD`, `SMTP_FROM_EMAIL`
+- Private evidence storage: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
+  optionally `SUPABASE_EVIDENCE_BUCKET` (defaults to `complaint-evidence`)
+- Optional Python service: `PYTHON_SERVICE_URL`, `PYTHON_SERVICE_TOKEN`
+
+Create a private `complaint-evidence` bucket in Supabase Storage before
+enabling uploads. The server uses the service-role credential only on the
+backend; evidence downloads continue through the authenticated API. Local
+development uses `UPLOAD_DIR` or `./uploads` when Supabase Storage credentials
+are not configured.
+
+Vercel Functions currently limit request bodies to 4.5 MB, so multipart uploads
+near the backend's 5 MB file limit can be rejected before Express receives
+them. Supporting the full 5 MB file size on Vercel requires a signed direct
+upload plus server-side validation/finalization flow; this implementation does
+not yet add that separate client upload flow.

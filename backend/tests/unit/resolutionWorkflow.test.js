@@ -4,6 +4,7 @@ const complaintRepository = require('../../src/repositories/complaintRepository'
 const resolutionVerificationRepository = require('../../src/repositories/resolutionVerificationRepository');
 const userRepository = require('../../src/repositories/userRepository');
 const complaintService = require('../../src/services/complaintService');
+const evidenceStorage = require('../../src/services/evidenceStorage');
 
 afterEach(() => {
   jest.restoreAllMocks();
@@ -154,6 +155,7 @@ describe('automatic assignment and resolution workflow', () => {
   });
 
   test('requires the assigned officer and a photo before submitting resolution evidence', async () => {
+    const uploadEvidence = jest.spyOn(evidenceStorage, 'uploadEvidence');
     const transaction = {};
     const complaint = { complaint_id: 73, officer_id: 14, status: 'ASSIGNED' };
     jest.spyOn(db, 'withTransaction').mockImplementation((callback) => callback(transaction));
@@ -168,6 +170,7 @@ describe('automatic assignment and resolution workflow', () => {
       after_file: { filename: 'after.jpg', mimetype: 'image/jpeg' },
       actor: { user_id: 99, role: 'OFFICER' },
     })).rejects.toMatchObject({ code: 'FORBIDDEN', status: 403 });
+    expect(uploadEvidence).not.toHaveBeenCalled();
 
     await expect(complaintService.resolveComplaint(73, {
       resolved_notes: 'The reported damage has been repaired and checked.',
@@ -236,6 +239,9 @@ describe('automatic assignment and resolution workflow', () => {
   });
 
   test('persists officer notes and after-photo before sending evidence to admin review', async () => {
+    jest.spyOn(evidenceStorage, 'uploadEvidence').mockResolvedValue(
+      'supabase://complaint-evidence/evidence/after-school.webp'
+    );
     const transaction = {};
     const complaint = { complaint_id: 77, officer_id: 14, status: 'ASSIGNED' };
     jest.spyOn(db, 'withTransaction').mockImplementation((callback) => callback(transaction));
@@ -247,18 +253,18 @@ describe('automatic assignment and resolution workflow', () => {
 
     await complaintService.resolveComplaint(77, {
       resolved_notes: 'The damaged school roof was repaired and inspected.',
-      after_file: { filename: 'after-school.webp', mimetype: 'image/webp' },
+      after_file: { buffer: Buffer.from('image bytes'), mimetype: 'image/webp' },
       actor: { user_id: 14, role: 'OFFICER' },
     });
 
     expect(submitResolution).toHaveBeenCalledWith(77, {
       resolved_by: 14,
       resolved_notes: 'The damaged school roof was repaired and inspected.',
-      resolved_image: '/uploads/after-school.webp',
+      resolved_image: 'supabase://complaint-evidence/evidence/after-school.webp',
     }, transaction);
     expect(addAttachment).toHaveBeenCalledWith(expect.objectContaining({
       attachment_type: 'AFTER',
-      file_path: '/uploads/after-school.webp',
+      file_path: 'supabase://complaint-evidence/evidence/after-school.webp',
       uploaded_by: 14,
     }), transaction);
     expect(addHistory).toHaveBeenCalledWith(expect.objectContaining({

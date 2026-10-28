@@ -5,6 +5,25 @@ const resolutionVerificationRepository = require('../repositories/resolutionVeri
 const auditRepository = require('../repositories/auditRepository');
 const userRepository = require('../repositories/userRepository');
 const workflowRules = require('./workflowRules');
+const evidenceStorage = require('./evidenceStorage');
+
+async function withEvidenceCleanup(operation) {
+  let uploadedPath = null;
+  try {
+    return await operation((filePath) => {
+      uploadedPath = filePath;
+    });
+  } catch (error) {
+    if (uploadedPath) {
+      try {
+        await evidenceStorage.deleteEvidence(uploadedPath);
+      } catch {
+        console.error('Failed to clean up evidence after a database failure.');
+      }
+    }
+    throw error;
+  }
+}
 
 class ComplaintService {
   async createComplaint({ title, description, category, sub_category, location, latitude, longitude, image_file, user }) {
@@ -15,8 +34,12 @@ class ComplaintService {
       throw err;
     }
 
-    return await db.withTransaction(async (conn) => {
-      const imagePath = image_file ? `/uploads/${image_file.filename}` : null;
+    return await withEvidenceCleanup((trackUploadedPath) =>
+      db.withTransaction(async (conn) => {
+      const imagePath = image_file
+        ? await evidenceStorage.uploadEvidence(image_file)
+        : null;
+      trackUploadedPath(imagePath);
 
       const complaintId = await complaintRepository.create(
         {
@@ -118,7 +141,8 @@ class ComplaintService {
       }
 
       return await complaintRepository.findById(complaintId, conn);
-    });
+      })
+    );
   }
 
   async recoverPendingAssignments(limit = 100) {
@@ -450,7 +474,8 @@ class ComplaintService {
       throw err;
     }
 
-    return await db.withTransaction(async (conn) => {
+    return await withEvidenceCleanup((trackUploadedPath) =>
+      db.withTransaction(async (conn) => {
       const complaint = await complaintRepository.findById(complaintId, conn, { forUpdate: true });
       if (!complaint) {
         const err = new Error('Complaint not found.');
@@ -467,7 +492,8 @@ class ComplaintService {
       }
 
       workflowRules.assertResolvable(complaint.status);
-      const afterImagePath = `/uploads/${after_file.filename}`;
+      const afterImagePath = await evidenceStorage.uploadEvidence(after_file);
+      trackUploadedPath(afterImagePath);
       await complaintRepository.submitResolution(
         complaintId,
         {
@@ -506,7 +532,8 @@ class ComplaintService {
         client: conn,
       });
       return await complaintRepository.findById(complaintId, conn);
-    });
+      })
+    );
   }
 
   async reviewResolution(complaintId, { decision, rejection_reason, actor }) {

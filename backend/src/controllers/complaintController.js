@@ -4,6 +4,7 @@ const feedbackRepository = require('../repositories/feedbackRepository');
 const resolutionVerificationRepository = require('../repositories/resolutionVerificationRepository');
 const path = require('path');
 const config = require('../config/env');
+const evidenceStorage = require('../services/evidenceStorage');
 
 function canViewComplaint(complaint, user) {
   return (
@@ -213,6 +214,23 @@ class ComplaintController {
           success: false,
           error: { code: 'EVIDENCE_NOT_FOUND', message: 'No evidence image is available.' },
         });
+      }
+
+      if (evidencePath.startsWith('supabase://')) {
+        const evidence = await evidenceStorage.downloadEvidence(evidencePath);
+        res.set({
+          'Content-Type': evidence.contentType,
+          'Cache-Control': 'private, no-store',
+          'X-Content-Type-Options': 'nosniff',
+        });
+        evidence.stream.on('error', (error) => {
+          if (!res.headersSent) {
+            next(error);
+          } else {
+            res.destroy(error);
+          }
+        });
+        return evidence.stream.pipe(res);
       }
 
       const filename = path.basename(evidencePath);
