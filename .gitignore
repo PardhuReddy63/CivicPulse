@@ -61,3 +61,4 @@ migration_backup/
 
 # Internal project specification - keep local until approved for publication
 /public/assets/aistudio/
+.vercel

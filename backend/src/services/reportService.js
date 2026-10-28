@@ -64,7 +64,7 @@ class ReportService {
               COUNT(c.complaint_id) as total_assigned,
               SUM(CASE WHEN c.status IN ('ASSIGNED', 'IN_PROGRESS', 'RESOLUTION_REJECTED', 'RESOLUTION_PENDING_REVIEW', 'AWAITING_CITIZEN') THEN 1 ELSE 0 END) as active_cases,
               SUM(CASE WHEN c.status = 'RESOLVED' THEN 1 ELSE 0 END) as resolved_cases,
-              SUM(CASE WHEN c.status IN ('ASSIGNED', 'IN_PROGRESS', 'RESOLUTION_REJECTED') AND c.deadline < CURRENT_DATE() THEN 1 ELSE 0 END) as overdue_cases
+              SUM(CASE WHEN c.status IN ('ASSIGNED', 'IN_PROGRESS', 'RESOLUTION_REJECTED') AND c.deadline < CURRENT_DATE THEN 1 ELSE 0 END) as overdue_cases
        FROM users u
        LEFT JOIN departments d ON u.department_id = d.department_id
        LEFT JOIN complaints c ON u.user_id = c.officer_id
